@@ -6,46 +6,181 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <Button
-        android:id="@+id/startButton"
+
+    <TextView
+        android:id="@+id/senderLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="52dp"
+        android:layout_marginTop="60dp"
+        android:text="@string/senderLabel"
+        app:layout_constraintEnd_toStartOf="@+id/ipReceiverText"
+        app:layout_constraintHorizontal_bias="0.444"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/dividerReceive" />
+
+    <Button
+        android:id="@+id/startReceivingButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
         android:layout_marginEnd="48dp"
-        android:onClick="startReceiver"
-        android:text="@string/start"
-        app:layout_constraintEnd_toStartOf="@+id/stopButton"
+        android:onClick="startSender"
+        android:text="@string/start_receive"
+        app:layout_constraintEnd_toStartOf="@+id/stopSendingButton"
         app:layout_constraintHorizontal_bias="0.507"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@+id/ipSenderText" />
 
-    <Button
-        android:id="@+id/stopButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+    <EditText
+        android:labelFor="@+id/senderLabel"
+        android:id="@+id/ipSenderText"
+        android:layout_width="243dp"
+        android:layout_height="41dp"
         android:layout_marginTop="52dp"
-        android:layout_marginEnd="48dp"
-        android:onClick="stopReceiver"
-        android:text="@string/stop"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-    <TextView
-        android:id="@+id/ipTextView"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text=""
-        app:layout_constraintBottom_toBottomOf="parent"
+        android:digits="@string/ip_characters"
+        android:ems="10"
+        android:inputType="number"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@+id/dividerReceive"
+        android:hint="@string/server_ip"
+        android:autofillHints="" />
 
-    <TextView
-        android:id="@+id/textView"
+    <Button
+        android:id="@+id/stopReceivingButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/device_ip"
-        app:layout_constraintBottom_toTopOf="@+id/ipTextView"
+        android:layout_marginTop="24dp"
+        android:layout_marginEnd="48dp"
+        android:onClick="stopSender"
+        android:text="@string/stop_receive"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
+        app:layout_constraintTop_toBottomOf="@+id/ipSenderText" />
+
+    <Button
+        android:id="@+id/startSendingButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:layout_marginEnd="48dp"
+        android:onClick="startSender"
+        android:text="@string/start_send"
+        app:layout_constraintEnd_toStartOf="@+id/stopSendingButton"
+        app:layout_constraintHorizontal_bias="0.507"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/ipReceiverText" />
+
+    <Button
+        android:id="@+id/stopSendingButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:layout_marginEnd="48dp"
+        android:onClick="stopSender"
+        android:text="@string/stop_send"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/ipReceiverText" />
+
+
+    <TextView
+        android:id="@+id/receiverLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="60dp"
+        android:text="@string/receiver_label"
+        app:layout_constraintEnd_toStartOf="@+id/ipReceiverText"
+        app:layout_constraintHorizontal_bias="0.447"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@id/dividerSend" />
+
+    <EditText
+        android:id="@+id/ipReceiverText"
+        android:layout_width="243dp"
+        android:layout_height="41dp"
+        android:layout_marginTop="52dp"
+        android:digits="@string/ip_characters"
+        android:ems="10"
+        android:inputType="number"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/dividerSend"
+        android:hint="@string/server_ip"
+        android:autofillHints="" />
+
+    <View
+        android:id="@+id/dividerReceive"
+        android:layout_width="409dp"
+        android:layout_height="1dp"
+        android:background="?android:attr/listDivider"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="1.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.6" />
+
+    <View
+        android:id="@+id/dividerInfo"
+        android:layout_width="409dp"
+        android:layout_height="1dp"
+        android:background="?android:attr/listDivider"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="1.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.0" />
+
+    <View
+        android:id="@+id/dividerSend"
+        android:layout_width="409dp"
+        android:layout_height="1dp"
+        android:background="?android:attr/listDivider"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.2" />
+
+    <TextView
+        android:id="@+id/textView4"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/not_connected"
+        android:textSize="24sp"
+        app:layout_constraintBottom_toTopOf="@+id/dividerSend"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.498"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.25" />
+
+    <TextView
+        android:id="@+id/textView5"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Server Name"
+        app:layout_constraintBottom_toTopOf="@+id/dividerSend"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.501"
+        android:textSize="16sp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.55" />
+
+    <TextView
+        android:id="@+id/textView6"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="IP: xxx.xxx.xxx.xxx"
+        android:textSize="16sp"
+        app:layout_constraintBottom_toTopOf="@+id/dividerSend"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.501"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.8" />
+
+
 </androidx.constraintlayout.widget.ConstraintLayout>

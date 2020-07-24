@@ -33,8 +33,8 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        val ipTextView: TextView = findViewById(R.id.ipTextView)
-        ipTextView.text = getIpAddresses()
+//        val ipTextView: TextView = findViewById(R.id.ipTextView)
+//        ipTextView.text = getIpAddresses()
 
         ActivityCompat.requestPermissions(this, permissions, REQUEST_RECORD_AUDIO_PERMISSION)
     }
@@ -56,7 +56,7 @@ class MainActivity : AppCompatActivity() {
     /**
      * Start roc receiver in separated thread and play samples via audioTrack
      */
-    fun startReceiver(@Suppress("UNUSED_PARAMETER") view: View) {
+    fun startSender(@Suppress("UNUSED_PARAMETER") view: View) {
         if (thread?.isAlive == true) {
             return
         }
@@ -102,7 +102,7 @@ class MainActivity : AppCompatActivity() {
     /**
      * Stop roc receiver and audioTrack
      */
-    fun stopReceiver(@Suppress("UNUSED_PARAMETER") view: View) {
+    fun stopSender(@Suppress("UNUSED_PARAMETER") view: View) {
         thread?.interrupt()
     }
 

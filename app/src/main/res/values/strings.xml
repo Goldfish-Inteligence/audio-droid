@@ -1,6 +1,13 @@
 <resources>
     <string name="app_name">roc-droid</string>
-    <string name="start">start</string>
-    <string name="stop">stop</string>
+    <string name="start_send">start sending</string>
+    <string name="stop_send">stop sending</string>
+    <string name="start_receive">start receiving</string>
+    <string name="stop_receive">stop receiving</string>
     <string name="device_ip">device ip:</string>
+    <string name="ip_characters">1234567890.</string>
+    <string name="senderLabel">Sender:</string>
+    <string name="server_ip">Server IP</string>
+    <string name="receiver_label">Receiver:</string>
+    <string name="not_connected">Not connected</string>
 </resources>
