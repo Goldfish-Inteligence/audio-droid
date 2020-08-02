@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:tools="http://schemas.android.com/tools"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <data>
+        <variable name="names" type="org.rocstreaming.rocdroid.ConnectionType"/>
+    </data>
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <Button
+            android:id="@+id/startButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:layout_marginEnd="48dp"
+            android:onClick="startSender"
+            android:text="@{`Start` + names.buttonText}"
+            app:layout_constraintEnd_toStartOf="@+id/stopButton"
+            app:layout_constraintHorizontal_bias="0.507"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/port1ReceiverText" />
+
+        <Button
+            android:id="@+id/stopButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:layout_marginEnd="48dp"
+            android:onClick="stopSender"
+            android:text="@{`Stop` + names.buttonText}"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/port2ReceiverText" />
+
+
+        <TextView
+            android:id="@+id/receiverLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="60dp"
+            android:text="@{names.serverRole}"
+            app:layout_constraintEnd_toStartOf="@+id/ipReceiverText"
+            app:layout_constraintHorizontal_bias="0.447"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <EditText
+            android:id="@+id/ipReceiverText"
+            android:layout_width="240dp"
+            android:layout_height="41dp"
+            android:layout_marginTop="40dp"
+            android:digits="@string/ip_characters"
+            android:ems="10"
+            android:inputType="number"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            android:hint="@string/server_ip"
+            android:autofillHints="" />
+
+        <EditText
+            android:id="@+id/port1ReceiverText"
+            android:layout_width="100dp"
+            android:layout_height="41dp"
+            android:layout_marginTop="52dp"
+            android:ems="10"
+            android:inputType="number"
+            app:layout_constraintStart_toStartOf="@+id/ipReceiverText"
+            app:layout_constraintTop_toTopOf="@+id/ipReceiverText"
+            android:hint="@string/audio_port"
+            android:autofillHints="" />
+
+        <EditText
+            android:id="@+id/port2ReceiverText"
+            android:layout_width="100dp"
+            android:layout_height="41dp"
+            android:layout_marginTop="52dp"
+            android:ems="10"
+            android:inputType="number"
+            app:layout_constraintEnd_toEndOf="@+id/ipReceiverText"
+            app:layout_constraintTop_toTopOf="@+id/ipReceiverText"
+            android:hint="@string/error_correction"
+            android:autofillHints="" />
+
+        <Spinner
+            android:id="@+id/spinner"
+            android:layout_width="240dp"
+            android:layout_height="wrap_content"
+            android:layout_marginVertical="28dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.497"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/startButton" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+
+
+</layout>

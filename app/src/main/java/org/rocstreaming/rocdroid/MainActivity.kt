@@ -2,17 +2,21 @@ package org.rocstreaming.rocdroid
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.media.*
+import android.media.AudioAttributes
 import android.media.AudioAttributes.USAGE_MEDIA
-import android.media.AudioFormat.*
-import android.media.AudioManager.AUDIO_SESSION_ID_GENERATE
+import android.media.AudioFormat
+import android.media.AudioFormat.CHANNEL_OUT_STEREO
+import android.media.AudioFormat.ENCODING_PCM_FLOAT
+import android.media.AudioRecord
 import android.media.AudioRecord.READ_BLOCKING
-import android.media.AudioTrack.MODE_STREAM
 import android.media.AudioTrack.PERFORMANCE_MODE_LOW_LATENCY
 import android.media.MediaRecorder.AudioSource.VOICE_PERFORMANCE
 import android.os.Bundle
 import android.view.View
-import android.widget.TextView
+import android.widget.ArrayAdapter
+import android.widget.EditText
+import android.widget.Spinner
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import org.rocstreaming.roctoolkit.*
@@ -26,15 +30,21 @@ private const val REQUEST_RECORD_AUDIO_PERMISSION = 200
 class MainActivity : AppCompatActivity() {
 
     private var thread: Thread? = null
+
     // Requesting permission to RECORD_AUDIO
     private var permissionToRecordAccepted = false
     private var permissions: Array<String> = arrayOf(Manifest.permission.RECORD_AUDIO)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-//        val ipTextView: TextView = findViewById(R.id.ipTextView)
-//        ipTextView.text = getIpAddresses()
+        setContentView(R.layout.alternate_main)
+
+        val outputs : Array<String> = arrayOf()
+        val spinner: Spinner = findViewById<View>(R.id.sender).findViewById(R.id.spinner)
+        val adapter =
+            ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, arrayOf(""))
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinner.adapter = adapter
 
         ActivityCompat.requestPermissions(this, permissions, REQUEST_RECORD_AUDIO_PERMISSION)
     }
@@ -54,12 +64,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Start roc receiver in separated thread and play samples via audioTrack
+     * Start roc sender in separated thread and play samples via audioTrack
      */
     fun startSender(@Suppress("UNUSED_PARAMETER") view: View) {
         if (thread?.isAlive == true) {
             return
         }
+
+        val ip = findViewById<EditText>(R.id.ipReceiverText).text.toString()
+        if (!ip.matches(Regex.fromLiteral("([0-9]{1-3}\\.{3})[0-9]{1-3}"))) {
+            Toast.makeText(this, "IP invalid", Toast.LENGTH_SHORT).show()
+            return
+        }
+        //statusTextView.setText(R.string.connected)
 
         thread = Thread(Runnable {
             val audioRecord = createAudioRecord()
@@ -77,12 +94,12 @@ class MainActivity : AppCompatActivity() {
                     sender.connect(
                         PortType.AUDIO_SOURCE,
                         Protocol.RTP_RS8M_SOURCE,
-                        Address(Family.AUTO, "100.124.83.113", 10001)
+                        Address(Family.AUTO, ip, 10001)
                     )
                     sender.connect(
                         PortType.AUDIO_REPAIR,
                         Protocol.RS8M_REPAIR,
-                        Address(Family.AUTO, "100.124.83.113", 10002)
+                        Address(Family.AUTO, ip, 10002)
                     )
 
                     val samples = FloatArray(BUFFER_SIZE)
@@ -100,10 +117,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Stop roc receiver and audioTrack
+     * Stop roc sender and audioTrack
      */
     fun stopSender(@Suppress("UNUSED_PARAMETER") view: View) {
         thread?.interrupt()
+        //statusTextView.setText(R.string.not_connected)
     }
 
     private fun createAudioRecord(): AudioRecord {
@@ -125,7 +143,7 @@ class MainActivity : AppCompatActivity() {
 
         return AudioRecord(
             // https://developer.android.com/reference/kotlin/android/media/MediaRecorder.AudioSource#voice_performance
-            // unsure if choiced correctly
+            // unsure if chosen correctly
             VOICE_PERFORMANCE,
             audioFormat.sampleRate,
             audioFormat.channelMask,
