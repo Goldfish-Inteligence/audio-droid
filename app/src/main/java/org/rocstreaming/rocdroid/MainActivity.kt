@@ -7,18 +7,23 @@ import android.media.AudioAttributes.USAGE_MEDIA
 import android.media.AudioFormat
 import android.media.AudioFormat.CHANNEL_OUT_STEREO
 import android.media.AudioFormat.ENCODING_PCM_FLOAT
+import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.AudioRecord.READ_BLOCKING
 import android.media.AudioTrack.PERFORMANCE_MODE_LOW_LATENCY
 import android.media.MediaRecorder.AudioSource.VOICE_PERFORMANCE
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.Spinner
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.databinding.DataBindingUtil
+import org.rocstreaming.rocdroid.databinding.AlternateMainBinding
 import org.rocstreaming.roctoolkit.*
 import java.net.NetworkInterface
 
@@ -35,16 +40,20 @@ class MainActivity : AppCompatActivity() {
     private var permissionToRecordAccepted = false
     private var permissions: Array<String> = arrayOf(Manifest.permission.RECORD_AUDIO)
 
+    @RequiresApi(Build.VERSION_CODES.P)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.alternate_main)
+        DataBindingUtil.setContentView(this, R.layout.alternate_main) as AlternateMainBinding
 
-        val outputs : Array<String> = arrayOf()
+        val audioManager = getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
+        val outputs = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)
+            .map { audioDeviceInfo -> audioDeviceInfo.toString() }
         val spinner: Spinner = findViewById<View>(R.id.sender).findViewById(R.id.spinner)
         val adapter =
-            ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, arrayOf(""))
+            ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, outputs)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinner.adapter = adapter
+
 
         ActivityCompat.requestPermissions(this, permissions, REQUEST_RECORD_AUDIO_PERMISSION)
     }

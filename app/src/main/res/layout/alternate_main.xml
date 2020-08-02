@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto">
+    xmlns:bind="http://schemas.android.com/apk/res-auto">
 
     <data>
 
@@ -21,14 +21,14 @@
             layout="@layout/server_connection"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:names="@{org.rocstreaming.rocdroid.ConnectionType.SENDER}" />
+            bind:names="@{org.rocstreaming.rocdroid.ConnectionType.SENDER}" />
 
         <include
             android:id="@+id/receiver"
             layout="@layout/server_connection"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:names="@{org.rocstreaming.rocdroid.ConnectionType.RECEIVER}" />
+            bind:names="@{org.rocstreaming.rocdroid.ConnectionType.RECEIVER}" />
 
 
     </LinearLayout>
