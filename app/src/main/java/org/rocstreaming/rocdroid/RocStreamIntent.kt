@@ -1,48 +1,30 @@
 package org.rocstreaming.rocdroid
 
-import android.app.IntentService
+import android.app.*
 import android.content.Intent
 import android.media.*
 import android.media.AudioManager.AUDIO_SESSION_ID_GENERATE
 import android.media.AudioTrack.MODE_STREAM
-import android.util.Log
-import android.widget.Toast
+import android.os.Build
+import android.os.IBinder
+import androidx.core.app.NotificationCompat
 import org.rocstreaming.roctoolkit.*
 
-class RocStreamService : IntentService(RocStreamService::class.simpleName) {
+
+class RocStreamService : Service() {
 
     companion object {
-        const val KEY_STATUS = "rocStatus"
-        const val KEY_RESULT_RECEIVER = "rocResultReceiver"
-        const val KEY_AUDIO_PORT = "rocAudioPort"
-        const val KEY_ERROR_PORT = "rocErrorPort"
-        const val KEY_IP = "rocIP"
-        const val KEY_RECEIVING = "receiving"
+        const val CHANNEL_ID = "RocStreamServiceChannel"
+        const val STREAM_DATA_KEY = "rocStreamData"
     }
 
-
-    override fun onHandleIntent(intent: Intent?) {
-        val ip = intent?.getStringExtra(KEY_IP)
-        Log.i("roc-droid", ip ?: "")
-        val audioPort = intent?.getIntExtra(KEY_AUDIO_PORT, 10001)
-        val errorPort = intent?.getIntExtra(KEY_ERROR_PORT, 10002)
-        if (intent!!.getBooleanExtra(KEY_RECEIVING, false)) {
-            startReceiver(ip!!, audioPort!!, errorPort!!)
-        } else {
-            startSender(ip!!, audioPort!!, errorPort!!)
-        }
-    }
+    private lateinit var thread: Thread
 
 
     /**
      * Start roc sender, is already in separate thread
      */
-    fun startSender(ip: String, audioPort: Int, errorPort: Int) {
-
-        if (!ip.matches(Regex.fromLiteral("([0-9]{1-3}\\.{3})[0-9]{1-3}"))) {
-            Toast.makeText(this, "IP invalid", Toast.LENGTH_SHORT).show()
-            return
-        }
+    private fun startSender(ip: String, audioPort: Int, errorPort: Int) {
 
         val audioRecord = createAudioRecord()
 
@@ -81,7 +63,7 @@ class RocStreamService : IntentService(RocStreamService::class.simpleName) {
     /**
      * Start roc receiver, is already in separated thread and play samples via audioTrack
      */
-    fun startReceiver(ip: String, audioPort: Int, errorPort: Int) {
+    private fun startReceiver(ip: String, audioPort: Int, errorPort: Int) {
 
         val audioTrack = createAudioTrack()
 
@@ -166,6 +148,57 @@ class RocStreamService : IntentService(RocStreamService::class.simpleName) {
             MODE_STREAM,
             AUDIO_SESSION_ID_GENERATE
         )
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val streamData: StreamData = intent!!.extras!!.get(STREAM_DATA_KEY) as StreamData
+
+        createNotificationChannel()
+        val notificationIntent = Intent(this, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, 0)
+        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("RocStream Service")
+            .setContentText(streamData.ip)
+            .setSmallIcon(android.R.drawable.presence_audio_online)
+            .setContentIntent(pendingIntent)
+            .build()
+        startForeground(1, notification)
+
+        thread = Thread {
+            Runnable {
+                if (streamData.receiving)
+                    startReceiver(streamData.ip, streamData.portAudio, streamData.portError)
+                else
+                    startSender(streamData.ip, streamData.portAudio, streamData.portError)
+            }
+        }
+        thread.start()
+
+        return START_REDELIVER_INTENT
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val serviceChannel = NotificationChannel(
+                CHANNEL_ID,
+                "RocStream Service Channel",
+                NotificationManager.IMPORTANCE_DEFAULT
+            )
+            val manager = getSystemService(
+                NotificationManager::class.java
+            )
+            manager.createNotificationChannel(serviceChannel)
+        }
+    }
+
+
+    override fun onBind(intent: Intent?): IBinder? {
+        return null
+    }
+
+    override fun onDestroy() {
+        thread.interrupt()
+        super.onDestroy()
     }
 
 }
