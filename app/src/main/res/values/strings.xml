@@ -5,7 +5,7 @@
     <string name="start_receive">start receiving</string>
     <string name="stop_receive">stop receiving</string>
     <string name="device_ip">device ip:</string>
-    <string name="ip_characters">1234567890.</string>
+    <string name="ip_characters">1234567890.:</string>
     <string name="senderLabel">Sender:</string>
     <string name="server_ip">Server IP</string>
     <string name="receiver_label">Receiver:</string>
@@ -14,5 +14,8 @@
     <string name="ip_placeholder">IP: xxx.xxx.xxx.xxx</string>
     <string name="server_name_placeholder">Server Name</string>
     <string name="audio_port">Audio Port</string>
-    <string name="error_correction">Error Correction</string>
+    <string name="error_correction">Error Correction Port</string>
+    <string name="select_server">Select Server</string>
+    <string name="stop_stream">Stop Stream</string>
+    <string name="refresh">refresh</string>
 </resources>
