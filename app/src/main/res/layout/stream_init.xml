@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <Button
+            android:id="@+id/sendButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="56dp"
+            android:layout_marginTop="24dp"
+            android:onClick="startSender"
+            android:text="@string/start_send"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/portAudioEditText" />
+
+
+        <Button
+            android:id="@+id/receiveButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="56dp"
+            android:layout_marginTop="24dp"
+            android:onClick="startReceiver"
+            android:text="@string/start_receive"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/sendButton" />
+
+
+        <Button
+            android:id="@+id/stopButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="56dp"
+            android:layout_marginTop="24dp"
+            android:onClick="startReceiver"
+            android:text="@string/stop_stream"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/receiveButton" />
+
+        <TextView
+            android:id="@+id/serverLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="40dp"
+            android:text="@string/select_server"
+            app:layout_constraintStart_toStartOf="@+id/ipSelect"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/portLabelAudio"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="@string/audio_port"
+            android:labelFor="@id/portAudioEditText"
+            app:layout_constraintStart_toStartOf="@+id/portAudioEditText"
+            app:layout_constraintTop_toBottomOf="@id/ipSelect"  />
+
+        <TextView
+            android:id="@+id/portLabelError"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="@string/error_correction"
+            android:labelFor="@id/portErrorEditText"
+            app:layout_constraintStart_toStartOf="@+id/portErrorEditText"
+            app:layout_constraintTop_toBottomOf="@id/ipSelect" />
+
+        <Spinner
+            android:id="@+id/ipSelect"
+            android:layout_width="0dp"
+            android:layout_height="41dp"
+            android:layout_marginEnd="24dp"
+            android:autofillHints=""
+            android:digits="@string/ip_characters"
+            android:ems="10"
+            android:hint="@string/server_ip"
+            android:inputType="number"
+            app:layout_constraintEnd_toStartOf="@+id/imageButton"
+            app:layout_constraintStart_toStartOf="@+id/portAudioEditText"
+            app:layout_constraintTop_toBottomOf="@id/serverLabel" />
+
+
+        <EditText
+            android:id="@+id/portAudioEditText"
+            android:layout_width="0dp"
+            android:layout_height="41dp"
+            android:layout_marginEnd="24dp"
+            android:autofillHints=""
+            android:ems="10"
+            android:inputType="number"
+            app:layout_constraintEnd_toStartOf="@+id/guideline2"
+            app:layout_constraintHorizontal_bias="0.0"
+            app:layout_constraintStart_toStartOf="@+id/sendButton"
+            app:layout_constraintTop_toBottomOf="@+id/portLabelAudio" />
+
+        <EditText
+            android:id="@+id/portErrorEditText"
+            android:layout_width="0dp"
+            android:layout_height="41dp"
+            android:layout_marginStart="24dp"
+            android:autofillHints=""
+            android:ems="10"
+            android:inputType="number"
+            app:layout_constraintEnd_toEndOf="@+id/receiveButton"
+            app:layout_constraintStart_toStartOf="@+id/guideline2"
+            app:layout_constraintTop_toBottomOf="@+id/portLabelError" />
+
+        <Spinner
+            android:id="@+id/spinner"
+            android:layout_width="240dp"
+            android:layout_height="wrap_content"
+            android:layout_marginVertical="28dp"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.497"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/sendButton" />
+
+        <androidx.constraintlayout.widget.Guideline
+            android:id="@+id/guideline2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            app:layout_constraintGuide_begin="205dp" />
+
+        <ImageButton
+            android:id="@+id/imageButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:onClick="refreshServerList"
+            app:layout_constraintEnd_toEndOf="@+id/portErrorEditText"
+            app:layout_constraintTop_toTopOf="@+id/ipSelect"
+            app:srcCompat="@drawable/ic_baseline_refresh_24"
+            android:contentDescription="@string/refresh" />
+
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+
+
+</layout>

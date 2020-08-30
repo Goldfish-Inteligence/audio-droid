@@ -15,9 +15,6 @@ import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.databinding.DataBindingUtil
-import org.rocstreaming.rocdroid.databinding.AlternateMainBinding
-import java.net.Inet6Address
 import java.net.InetAddress
 import java.net.NetworkInterface
 
@@ -32,39 +29,26 @@ class MainActivity : AppCompatActivity() {
     // Requesting permission to RECORD_AUDIO
     private var permissionToRecordAccepted = false
     private var permissions: Array<String> = arrayOf(Manifest.permission.RECORD_AUDIO)
-    private var servers: List<String> = emptyList()
+    private val servers: MutableList<String> = MutableList(0,{""})
     private lateinit var serverAdapter: ArrayAdapter<String>
 
     @RequiresApi(Build.VERSION_CODES.P)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        DataBindingUtil.setContentView(this, R.layout.alternate_main) as AlternateMainBinding
+        setContentView(R.layout.main)
 
         // Fill spinner values
-        servers = getIpAddresses().map { it.hostAddress }
         serverAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, servers)
-        findViewById<View>(R.id.receiver).findViewById<Spinner>(R.id.ipEditText).adapter = serverAdapter
-
-        // Map start/stop calls
-        ConnectionType.SENDER.start = ::startSender
-        ConnectionType.SENDER.stop = ::stopStream
-        ConnectionType.RECEIVER.start = ::startReceiver
-        ConnectionType.RECEIVER.stop = ::startReceiver
-
-        //initialize audio
-        val audioManager = getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
-        val outputs = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)
-            .map { audioDeviceInfo -> audioDeviceInfo.toString() }
-
-        // audio outputs
-        val spinner: Spinner = findViewById<View>(R.id.sender).findViewById(R.id.spinner)
-        val adapter =
-            ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, outputs)
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        spinner.adapter = adapter
-
+        findViewById<View>(R.id.stream).findViewById<Spinner>(R.id.ipSelect).adapter = serverAdapter
+        refreshServerList(null)
 
         ActivityCompat.requestPermissions(this, permissions, REQUEST_RECORD_AUDIO_PERMISSION)
+    }
+
+    fun refreshServerList(@Suppress("UNUSED_PARAMETER") view: View?) {
+        servers.removeAll(servers)
+        servers.addAll(getIpAddresses().map { it.hostAddress })
+        serverAdapter.notifyDataSetChanged()
     }
 
     override fun onRequestPermissionsResult(
@@ -85,24 +69,22 @@ class MainActivity : AppCompatActivity() {
      * Start roc sender in separated thread and play samples via audioTrack
      */
     fun startSender(@Suppress("UNUSED_PARAMETER") view: View) {
-        stopStream(view)
-        val sender = findViewById<View>(R.id.sender)
-        startStream(sender, false)
+        startStream(view, false)
     }
 
     /**
      * Start roc sender in separated thread and play samples via audioTrack
      */
     fun startReceiver(view: View) {
-        stopStream(view)
-        val receiver = findViewById<View>(R.id.receiver)
-        startStream(receiver, true)
+        startStream(view,true)
     }
 
-    private fun startStream(receiver: View, receiving: Boolean) {
-        val address = receiver.findViewById<Spinner>(R.id.ipEditText).selectedItem as InetAddress
-        val audioPort = receiver.findViewById<EditText>(R.id.portAudioEditText).text.toString()
-        val errorPort = receiver.findViewById<EditText>(R.id.portErrorEditText).text.toString()
+    private fun startStream(view: View, receiving: Boolean) {
+        stopStream(view)
+        val stream = findViewById<View>(R.id.stream)
+        val address = stream.findViewById<Spinner>(R.id.ipSelect).selectedItem as InetAddress
+        val audioPort = stream.findViewById<EditText>(R.id.portAudioEditText).text.toString()
+        val errorPort = stream.findViewById<EditText>(R.id.portErrorEditText).text.toString()
 
         val intent = Intent(this, RocStreamService::class.java)
         val streamData = StreamData(
