@@ -1,30 +1,21 @@
 package org.rocstreaming.rocdroid
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
-import android.media.AudioAttributes
-import android.media.AudioAttributes.USAGE_MEDIA
-import android.media.AudioFormat
-import android.media.AudioFormat.CHANNEL_OUT_STEREO
-import android.media.AudioFormat.ENCODING_PCM_FLOAT
 import android.media.AudioManager
-import android.media.AudioRecord
-import android.media.AudioRecord.READ_BLOCKING
-import android.media.AudioTrack.PERFORMANCE_MODE_LOW_LATENCY
-import android.media.MediaRecorder.AudioSource.VOICE_PERFORMANCE
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.Spinner
-import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.databinding.DataBindingUtil
 import org.rocstreaming.rocdroid.databinding.AlternateMainBinding
-import org.rocstreaming.roctoolkit.*
 import java.net.NetworkInterface
 
 const val SAMPLE_RATE = 44100
@@ -34,7 +25,7 @@ private const val REQUEST_RECORD_AUDIO_PERMISSION = 200
 
 class MainActivity : AppCompatActivity() {
 
-    private var thread: Thread? = null
+    private var serviceIntent: Intent? = null
 
     // Requesting permission to RECORD_AUDIO
     private var permissionToRecordAccepted = false
@@ -44,6 +35,10 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         DataBindingUtil.setContentView(this, R.layout.alternate_main) as AlternateMainBinding
+        ConnectionType.SENDER.start = ::startSender
+        ConnectionType.SENDER.stop = ::stopConnection
+        ConnectionType.RECEIVER.start = ::startReceiver
+        ConnectionType.RECEIVER.stop = ::startReceiver
 
         val audioManager = getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
         val outputs = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)
@@ -76,91 +71,62 @@ class MainActivity : AppCompatActivity() {
      * Start roc sender in separated thread and play samples via audioTrack
      */
     fun startSender(@Suppress("UNUSED_PARAMETER") view: View) {
-        if (thread?.isAlive == true) {
-            return
+        val sender = findViewById<View>(R.id.sender)
+
+        val ip = sender.findViewById<EditText>(R.id.ipEditText).text.toString()
+        val audioPort = sender.findViewById<EditText>(R.id.portAudioEditText).text.toString()
+        val errorPort = sender.findViewById<EditText>(R.id.portErrorEditText).text.toString()
+        val intent = Intent(this, RocStreamService::class.java)
+        intent.putExtra(RocStreamService.KEY_IP, ip)
+        try {
+            intent.putExtra(RocStreamService.KEY_AUDIO_PORT, audioPort.toInt())
+        } catch (e: NumberFormatException) {
         }
-
-        val ip = findViewById<EditText>(R.id.ipReceiverText).text.toString()
-        if (!ip.matches(Regex.fromLiteral("([0-9]{1-3}\\.{3})[0-9]{1-3}"))) {
-            Toast.makeText(this, "IP invalid", Toast.LENGTH_SHORT).show()
-            return
+        try {
+            intent.putExtra(RocStreamService.KEY_ERROR_PORT, errorPort.toInt())
+        } catch (e: NumberFormatException) {
         }
-        //statusTextView.setText(R.string.connected)
+        intent.putExtra(RocStreamService.KEY_RECEIVING, false)
+        startService(intent)
+        serviceIntent = intent
 
-        thread = Thread(Runnable {
-            val audioRecord = createAudioRecord()
+    }
 
-            audioRecord.startRecording()
-            val config = SenderConfig.Builder(
-                SAMPLE_RATE,
-                ChannelSet.STEREO,
-                FrameEncoding.PCM_FLOAT
-            ).build()
+    /**
+     * Start roc sender in separated thread and play samples via audioTrack
+     */
+    fun startReceiver(@Suppress("UNUSED_PARAMETER") view: View) {
 
-            Context().use { context ->
-                Sender(context, config).use { sender ->
-                    sender.bind(Address(Family.AUTO, "0.0.0.0", 0))
-                    sender.connect(
-                        PortType.AUDIO_SOURCE,
-                        Protocol.RTP_RS8M_SOURCE,
-                        Address(Family.AUTO, ip, 10001)
-                    )
-                    sender.connect(
-                        PortType.AUDIO_REPAIR,
-                        Protocol.RS8M_REPAIR,
-                        Address(Family.AUTO, ip, 10002)
-                    )
+        val sender = findViewById<View>(R.id.receiver)
 
-                    val samples = FloatArray(BUFFER_SIZE)
-                    while (!Thread.currentThread().isInterrupted) {
-                        audioRecord.read(samples, 0, samples.size, READ_BLOCKING)
-                        sender.write(samples)
-                    }
-                }
-            }
+        val ip = sender.findViewById<EditText>(R.id.ipEditText).text.toString()
+        val audioPort = sender.findViewById<EditText>(R.id.portAudioEditText).text.toString()
+        val errorPort = sender.findViewById<EditText>(R.id.portErrorEditText).text.toString()
+        val intent = Intent(this, RocStreamService::class.java)
+        intent.putExtra(RocStreamService.KEY_IP, ip)
+        try {
+            intent.putExtra(RocStreamService.KEY_AUDIO_PORT, audioPort.toInt())
+        } catch (e: NumberFormatException) {
+        }
+        try {
+            intent.putExtra(RocStreamService.KEY_ERROR_PORT, errorPort.toInt())
+        } catch (e: NumberFormatException) {
+        }
+        intent.putExtra(RocStreamService.KEY_RECEIVING, true)
+        Log.v("roc-droid",ip)
+        startService(intent)
+        serviceIntent = intent
 
-            audioRecord.release()
-        })
-
-        thread!!.start()
     }
 
     /**
      * Stop roc sender and audioTrack
      */
-    fun stopSender(@Suppress("UNUSED_PARAMETER") view: View) {
-        thread?.interrupt()
-        //statusTextView.setText(R.string.not_connected)
+    fun stopConnection(@Suppress("UNUSED_PARAMETER") view: View) {
+        stopService(serviceIntent)
     }
 
-    private fun createAudioRecord(): AudioRecord {
-        val audioAttributes = AudioAttributes.Builder()
-            .setUsage(USAGE_MEDIA)
-            .setFlags(PERFORMANCE_MODE_LOW_LATENCY)
-            .build()
-        val audioFormat = AudioFormat.Builder()
-            .setSampleRate(SAMPLE_RATE)
-            .setEncoding(ENCODING_PCM_FLOAT)
-            .setChannelMask(CHANNEL_OUT_STEREO) // should be mono
-            .build()
-
-        val bufferSize = AudioRecord.getMinBufferSize(
-            audioFormat.sampleRate,
-            audioFormat.channelMask,
-            audioFormat.encoding
-        )
-
-        return AudioRecord(
-            // https://developer.android.com/reference/kotlin/android/media/MediaRecorder.AudioSource#voice_performance
-            // unsure if chosen correctly
-            VOICE_PERFORMANCE,
-            audioFormat.sampleRate,
-            audioFormat.channelMask,
-            audioFormat.encoding,
-            bufferSize
-        )
-    }
-
+    // TODO: do we need this?
     private fun getIpAddresses(): String {
         try {
             return NetworkInterface.getNetworkInterfaces().toList()
