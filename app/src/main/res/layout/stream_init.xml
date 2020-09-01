@@ -51,7 +51,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="40dp"
             android:text="@string/select_server"
-            app:layout_constraintStart_toStartOf="@+id/ipSelect"
+            app:layout_constraintStart_toStartOf="@+id/ipEditText"
             app:layout_constraintTop_toTopOf="parent" />
 
         <TextView
@@ -59,32 +59,31 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
-            android:text="@string/audio_port"
             android:labelFor="@id/portAudioEditText"
+            android:text="@string/audio_port"
             app:layout_constraintStart_toStartOf="@+id/portAudioEditText"
-            app:layout_constraintTop_toBottomOf="@id/ipSelect"  />
+            app:layout_constraintTop_toBottomOf="@id/ipEditText" />
 
         <TextView
             android:id="@+id/portLabelError"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
-            android:text="@string/error_correction"
             android:labelFor="@id/portErrorEditText"
+            android:text="@string/error_correction"
             app:layout_constraintStart_toStartOf="@+id/portErrorEditText"
-            app:layout_constraintTop_toBottomOf="@id/ipSelect" />
+            app:layout_constraintTop_toBottomOf="@id/ipEditText" />
 
-        <Spinner
-            android:id="@+id/ipSelect"
+        <EditText
+            android:id="@+id/ipEditText"
             android:layout_width="0dp"
             android:layout_height="41dp"
-            android:layout_marginEnd="24dp"
             android:autofillHints=""
             android:digits="@string/ip_characters"
             android:ems="10"
             android:hint="@string/server_ip"
             android:inputType="number"
-            app:layout_constraintEnd_toStartOf="@+id/imageButton"
+            app:layout_constraintEnd_toEndOf="@+id/sendButton"
             app:layout_constraintStart_toStartOf="@+id/portAudioEditText"
             app:layout_constraintTop_toBottomOf="@id/serverLabel" />
 
@@ -97,7 +96,7 @@
             android:autofillHints=""
             android:ems="10"
             android:inputType="number"
-            app:layout_constraintEnd_toStartOf="@+id/guideline2"
+            app:layout_constraintEnd_toStartOf="@+id/guide_mid"
             app:layout_constraintHorizontal_bias="0.0"
             app:layout_constraintStart_toStartOf="@+id/sendButton"
             app:layout_constraintTop_toBottomOf="@+id/portLabelAudio" />
@@ -111,7 +110,7 @@
             android:ems="10"
             android:inputType="number"
             app:layout_constraintEnd_toEndOf="@+id/receiveButton"
-            app:layout_constraintStart_toStartOf="@+id/guideline2"
+            app:layout_constraintStart_toStartOf="@+id/guide_mid"
             app:layout_constraintTop_toBottomOf="@+id/portLabelError" />
 
         <Spinner
@@ -126,25 +125,14 @@
             app:layout_constraintTop_toBottomOf="@+id/sendButton" />
 
         <androidx.constraintlayout.widget.Guideline
-            android:id="@+id/guideline2"
+            android:id="@+id/guide_mid"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             app:layout_constraintGuide_begin="205dp" />
 
-        <ImageButton
-            android:id="@+id/imageButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:onClick="refreshServerList"
-            app:layout_constraintEnd_toEndOf="@+id/portErrorEditText"
-            app:layout_constraintTop_toTopOf="@+id/ipSelect"
-            app:srcCompat="@drawable/ic_baseline_refresh_24"
-            android:contentDescription="@string/refresh" />
-
 
     </androidx.constraintlayout.widget.ConstraintLayout>
-
 
 
 </layout>

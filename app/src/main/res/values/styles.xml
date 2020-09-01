@@ -8,4 +8,26 @@
         <item name="colorAccent">@color/colorAccent</item>
     </style>
 
+    <style name="toggleMicButton" parent="@style/AppTheme">
+        <item name="android:background">@drawable/ic_toggle_mic_bg</item>
+        <item name="android:disabledAlpha">?android:attr/disabledAlpha</item>
+        <item name="android:textOn" />
+        <item name="android:textOff" />
+    </style>
+
+    <style name="toggleSendButton" parent="@style/AppTheme">
+        <item name="android:background">@drawable/ic_toggle_receive_bg</item>
+        <item name="android:disabledAlpha">?android:attr/disabledAlpha</item>
+        <item name="android:textOn" />
+        <item name="android:textOff" />
+    </style>
+
+    <style name="toggleReceiveButton" parent="@style/AppTheme">
+        <item name="android:background">@drawable/ic_toggle_send_bg</item>
+        <item name="android:disabledAlpha">?android:attr/disabledAlpha</item>
+        <item name="android:textOn" />
+        <item name="android:textOff" />
+    </style>
+
+
 </resources>
