@@ -4,24 +4,22 @@ import java.io.Serializable
 
 data class StreamData(
     val ip: String,
-    val portAudioReceive: Int,
-    val portErrorReceive: Int,
+    val portAudioRecv: Int,
+    val portErrorRecv: Int,
     val portAudioSend: Int,
-    val portErrorSend: Int,
-    val receiving: Boolean,
-    val sending: Boolean
+    val portErrorSend: Int
 ) : Serializable {
     fun modified(
         ip: String = this.ip,
-        portAudioReceive: Int = this.portAudioReceive,
-        portErrorReceive: Int = this.portErrorReceive,
+        portAudioRecv: Int = this.portAudioRecv,
+        portErrorRecv: Int = this.portErrorRecv,
         portAudioSend: Int = this.portAudioSend,
-        portErrorSend: Int = this.portErrorSend,
-        receiving: Boolean = this.receiving,
-        sending: Boolean = this.sending
-    ): StreamData {
-        return StreamData(
-            ip, portAudioReceive, portErrorReceive, portAudioSend, portErrorSend, receiving, sending
-        )
-    }
+        portErrorSend: Int = this.portErrorSend
+    ): StreamData = StreamData(ip, portAudioRecv, portErrorRecv, portAudioSend, portErrorSend)
+
+    fun sendChanged(other: StreamData): Boolean =
+        other.ip != ip || other.portAudioSend != portAudioSend || other.portErrorSend != portErrorSend
+
+    fun recvChanged(other: StreamData): Boolean =
+        other.ip != ip || other.portAudioRecv != portAudioRecv || other.portErrorRecv != portErrorRecv
 }
