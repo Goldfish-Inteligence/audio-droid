@@ -39,12 +39,10 @@ interface CtrlCallback {
  * TODO: Implement a very simple state machine that is queryable (connecting, connected, fatal, retrying, ...)\
  * TODO: Implement a send thread for networking
  */
-class CtrlCommunicator {
+class CtrlCommunicator(// cant get this to work without nullable
+    private var callbacks: CtrlCallback, private val deviceId: String, context: Context
+) {
     private var socket: Socket? = null
-
-    // cant get this to work without nullable
-    private var callbacks: CtrlCallback? = null
-    private val deviceId: String
 
     private var host: String = ""
     private var port: Int = 0
@@ -65,7 +63,7 @@ class CtrlCommunicator {
 
             autoHost = service.host.hostName
             autoPort = service.port
-            callbacks?.onServerDiscovered(autoHost, autoPort)
+            callbacks.onServerDiscovered(autoHost, autoPort)
         }
 
         override fun onStopDiscoveryFailed(p0: String?, p1: Int) {
@@ -89,12 +87,8 @@ class CtrlCommunicator {
         }
     }
 
-    constructor(callbacks: CtrlCallback, deviceId: String, context: Context) {
-        this.callbacks = callbacks
-        this.deviceId = deviceId
-
+    init {
         this.nsdManager = context.getSystemService(Context.NSD_SERVICE) as NsdManager
-
     }
 
     fun sendBatteryLevel(level: Double, isChargin: Boolean) {
@@ -134,7 +128,7 @@ class CtrlCommunicator {
 
         val command = JSONObject();
         command.put("type", "Hello")
-        command.put("client_name", deviceId)
+        command.put("client_name",  deviceId)
 
         socket?.getOutputStream()?.write(command.toString().toByteArray())
 
