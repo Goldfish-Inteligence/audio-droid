@@ -50,7 +50,7 @@
 
 
         <ToggleButton
-            android:id="@+id/toggleReceiveButton"
+            android:id="@+id/toggleRecvButton"
             style="@style/toggleReceiveButton"
             android:layout_width="32dp"
             android:layout_height="32dp"
