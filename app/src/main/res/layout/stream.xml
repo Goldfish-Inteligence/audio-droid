@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+
+        <Button
+            android:id="@+id/updateButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="56dp"
+            android:layout_marginTop="24dp"
+            android:onClick="saveSettings"
+            android:text="@string/start_send"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/portAudioEditText" />
+
+        <TextView
+            android:id="@+id/advancedLabel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="@string/advanced"
+            android:textSize="20sp"
+            app:layout_constraintEnd_toStartOf="@+id/guideEnd"
+            app:layout_constraintStart_toStartOf="@+id/guideStart"
+            app:layout_constraintTop_toTopOf="@+id/guide_top" />
+
+
+        <TextView
+            android:id="@+id/serverLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="@string/select_server"
+            app:layout_constraintStart_toStartOf="@+id/guideStart"
+            app:layout_constraintTop_toBottomOf="@+id/advancedLabel" />
+
+
+        <EditText
+            android:id="@+id/ipEditText"
+            android:layout_width="0dp"
+            android:layout_height="41dp"
+            android:autofillHints=""
+            android:digits="@string/ip_characters"
+            android:ems="10"
+            android:hint="@string/server_ip"
+            android:inputType="number"
+            app:layout_constraintEnd_toStartOf="@+id/guideEnd"
+            app:layout_constraintStart_toStartOf="@+id/guideStart"
+            app:layout_constraintTop_toBottomOf="@id/serverLabel" />
+
+
+        <TextView
+            android:id="@+id/sendLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/send"
+            android:textSize="16sp"
+            app:layout_constraintEnd_toStartOf="@+id/guideEnd"
+            app:layout_constraintHorizontal_bias="0.498"
+            app:layout_constraintStart_toStartOf="@+id/guideStart"
+            app:layout_constraintTop_toBottomOf="@+id/ipEditText" />
+
+        <TextView
+            android:id="@+id/portLabelAudio"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:labelFor="@id/portAudioEditText"
+            android:text="@string/audio_port"
+            app:layout_constraintStart_toStartOf="@+id/portAudioEditText"
+            app:layout_constraintTop_toBottomOf="@+id/receiveLabel" />
+
+        <TextView
+            android:id="@+id/portLabelError"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:labelFor="@id/portErrorEditText"
+            android:text="@string/error_correction"
+            app:layout_constraintEnd_toStartOf="@+id/guideEnd"
+            app:layout_constraintTop_toBottomOf="@+id/receiveLabel" />
+
+        <EditText
+            android:id="@+id/portAudioEditText"
+            android:layout_width="0dp"
+            android:layout_height="41dp"
+            android:layout_marginEnd="24dp"
+            android:autofillHints=""
+            android:ems="10"
+            android:inputType="number"
+            app:layout_constraintEnd_toStartOf="@+id/guide_mid"
+            app:layout_constraintStart_toStartOf="@+id/guideStart"
+            app:layout_constraintTop_toBottomOf="@+id/portLabelAudio" />
+
+        <EditText
+            android:id="@+id/portErrorEditText"
+            android:layout_width="0dp"
+            android:layout_height="41dp"
+            android:layout_marginStart="24dp"
+            android:autofillHints=""
+            android:ems="10"
+            android:inputType="number"
+            app:layout_constraintEnd_toStartOf="@+id/guideEnd"
+            app:layout_constraintStart_toStartOf="@+id/guide_mid"
+            app:layout_constraintTop_toBottomOf="@+id/portLabelError" />
+
+
+        <TextView
+            android:id="@+id/receiveLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/receive"
+            android:textSize="16sp"
+            app:layout_constraintEnd_toStartOf="@+id/guideEnd"
+            app:layout_constraintStart_toStartOf="@+id/guideStart"
+            app:layout_constraintTop_toBottomOf="@+id/portAudioEditTextSend" />
+
+        <TextView
+            android:id="@+id/portLabelAudioSend"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:labelFor="@id/portAudioEditTextSend"
+            android:text="@string/audio_port"
+            app:layout_constraintStart_toStartOf="@+id/portAudioEditText"
+            app:layout_constraintTop_toBottomOf="@+id/sendLabel" />
+
+        <TextView
+            android:id="@+id/portLabelErrorSend"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:labelFor="@id/portErrorEditTextSend"
+            android:text="@string/error_correction"
+            app:layout_constraintEnd_toStartOf="@+id/guideEnd"
+            app:layout_constraintTop_toBottomOf="@+id/sendLabel" />
+
+
+
+        <EditText
+            android:id="@+id/portAudioEditTextSend"
+            android:layout_width="0dp"
+            android:layout_height="41dp"
+            android:layout_marginEnd="24dp"
+            android:autofillHints=""
+            android:ems="10"
+            android:inputType="number"
+            app:layout_constraintEnd_toStartOf="@+id/guide_mid"
+            app:layout_constraintStart_toStartOf="@+id/guideStart"
+            app:layout_constraintTop_toBottomOf="@+id/portLabelAudioSend" />
+
+        <EditText
+            android:id="@+id/portErrorEditTextSend"
+            android:layout_width="0dp"
+            android:layout_height="41dp"
+            android:layout_marginStart="24dp"
+            android:autofillHints=""
+            android:ems="10"
+            android:inputType="number"
+            app:layout_constraintEnd_toStartOf="@+id/guideEnd"
+            app:layout_constraintStart_toStartOf="@+id/guide_mid"
+            app:layout_constraintTop_toBottomOf="@+id/portLabelErrorSend" />
+
+
+
+
+        <androidx.constraintlayout.widget.Guideline
+            android:id="@+id/guide_mid"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            app:layout_constraintGuide_begin="205dp" />
+
+        <androidx.constraintlayout.widget.Guideline
+            android:id="@+id/guideStart"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            app:layout_constraintGuide_begin="56dp" />
+
+        <androidx.constraintlayout.widget.Guideline
+            android:id="@+id/guideEnd"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            app:layout_constraintGuide_end="56dp" />
+
+
+        <androidx.constraintlayout.widget.Guideline
+            android:id="@+id/guide_top"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            app:layout_constraintGuide_begin="20dp" />
+
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+
+</layout>

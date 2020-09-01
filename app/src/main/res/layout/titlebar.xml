@@ -21,23 +21,77 @@
             android:layout_marginTop="20dp"
             android:text="@string/not_connected"
             android:textSize="24sp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintStart_toStartOf="@+id/guideStart"
             app:layout_constraintTop_toTopOf="parent" />
 
         <TextView
             android:id="@+id/connectionName"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="20dp"
             android:text="@string/server_name_placeholder"
             android:textSize="16sp"
-            android:layout_marginBottom="20dp"
-            android:layout_marginTop="8dp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/connectionInfo"
             app:layout_constraintBottom_toBottomOf="parent"
-            />
+            app:layout_constraintStart_toStartOf="@+id/guideStart"
+            app:layout_constraintTop_toBottomOf="@+id/connectionInfo" />
+
+
+        <ToggleButton
+            android:id="@+id/toggleMicButton"
+            style="@style/toggleMicButton"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/ic_toggle_mic_bg"
+            android:enabled="false"
+            android:checked="true"
+            app:layout_constraintBottom_toBottomOf="@+id/connectionInfo"
+            app:layout_constraintEnd_toStartOf="@+id/guideEnd" />
+
+
+        <ToggleButton
+            android:id="@+id/toggleReceiveButton"
+            style="@style/toggleReceiveButton"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/ic_toggle_receive_bg"
+            android:enabled="false"
+            app:layout_constraintBottom_toBottomOf="@+id/connectionInfo"
+            app:layout_constraintEnd_toStartOf="@+id/toggleSendButton" />
+
+
+        <ToggleButton
+            android:id="@+id/toggleSendButton"
+            style="@style/toggleSendButton"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/ic_toggle_send_bg"
+            android:enabled="false"
+            app:layout_constraintBottom_toBottomOf="@+id/connectionInfo"
+            app:layout_constraintEnd_toStartOf="@+id/toggleMicButton" />
+
+
+        <androidx.constraintlayout.widget.Guideline
+            android:id="@+id/guide_mid"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            app:layout_constraintGuide_begin="205dp" />
+
+        <androidx.constraintlayout.widget.Guideline
+            android:id="@+id/guideStart"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            app:layout_constraintGuide_begin="56dp" />
+
+        <androidx.constraintlayout.widget.Guideline
+            android:id="@+id/guideEnd"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            app:layout_constraintGuide_end="56dp" />
+
 
 
     </androidx.constraintlayout.widget.ConstraintLayout>
