@@ -9,6 +9,7 @@ import android.media.AudioManager.AUDIO_SESSION_ID_GENERATE
 import android.media.AudioTrack.MODE_STREAM
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import org.rocstreaming.roctoolkit.*
@@ -18,15 +19,17 @@ class RocStreamService : Service() {
 
     companion object {
         const val CHANNEL_ID = "RocStreamServiceChannel"
-        const val STREAM_DATA_KEY = "rocStreamData"
+        const val STREAM_DATA_KEY = "STREAM_DATA_KEY"
+        const val STREAM_TOGGLE_KEY = "STREAM_TOGGLE_KEY"
         const val ROC_STREAM_SERVICE_INTENT_STRING = "ROC_STREAM_SERVICE_UPDATE"
         const val ACTION_TOGGLE_MUTE = "ACTION_TOGGLE_MUTE"
         const val ACTION_TOGGLE_SEND = "ACTION_TOGGLE_SEND"
-        const val ACTION_TOGGLE_RECEIVE = "ACTION_TOGGLE_RECEIVE"
+        const val ACTION_TOGGLE_RECV = "ACTION_TOGGLE_RECEIVE"
         const val ACTION_UPDATE_STREAM = "ACTION_UPDATE_STREAM"
     }
 
-    private lateinit var receiveThread: Thread
+    private var initialized = false
+    private lateinit var recvThread: Thread
     private lateinit var sendThread: Thread
     private lateinit var streamData: StreamData
 
@@ -70,7 +73,7 @@ class RocStreamService : Service() {
         }
 
         audioRecord.release()
-        if (!receiveThread.isAlive) stopService(Intent(this, this.javaClass))
+        if (!recvThread.isAlive) stopService(Intent(this, this.javaClass))
     }
 
     /**
@@ -167,76 +170,110 @@ class RocStreamService : Service() {
     // ---------- Android callbacks ----------
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        streamData = intent!!.extras!!.get(STREAM_DATA_KEY) as StreamData
+        if (!initialized) {
+            Log.i(CHANNEL_ID, "Service Start invoked!")
+            streamData = intent!!.extras!!.get(STREAM_DATA_KEY) as StreamData
 
-        createNotificationChannel()
-        val notificationIntent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, 0)
+            createNotificationChannel()
+            val notificationIntent = Intent(this, MainActivity::class.java)
+            val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, 0)
 
-        val notificationLayout = RemoteViews(applicationContext.packageName, R.layout.notification)
+            val notificationLayout =
+                RemoteViews(applicationContext.packageName, R.layout.notification)
 
-        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.presence_audio_online)
-            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
-            .setCustomContentView(notificationLayout)
-            .setFullScreenIntent(pendingIntent,true)
-            .build()
-        startForeground(1, notification)
-
-
-        sendThread = Thread {
-            Runnable {
-                startSender(streamData.ip, streamData.portAudioSend, streamData.portErrorSend)
-            }
-        }
-        receiveThread = Thread {
-            Runnable {
-                startReceiver(
-                    streamData.ip,
-                    streamData.portAudioReceive,
-                    streamData.portErrorReceive
-                )
-            }
-        }
-        if (streamData.sending && !sendThread.isAlive)
-            sendThread.start()
-        if (streamData.receiving && !receiveThread.isAlive)
-            receiveThread.start()
-
-        val br = object : BroadcastReceiver() {
-            override fun onReceive(context: android.content.Context?, intent: Intent?) {
-                when (intent?.action) {
-                    ACTION_TOGGLE_RECEIVE -> {
-                        if (receiveThread.isAlive) receiveThread.interrupt()
-                        else receiveThread.start()
-                    }
-                    ACTION_TOGGLE_SEND -> {
-                        if (sendThread.isAlive) sendThread.interrupt()
-                        else sendThread.start()
-                    }
-                    ACTION_TOGGLE_MUTE -> {
-                        TODO("Mute stream")
-                    }
-                    ACTION_UPDATE_STREAM -> {
-
-                        TODO("Update Stream data")
-                    }
-                    else -> {
-                        return // why are we here?
+            val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.presence_audio_online)
+                .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+                .setCustomContentView(notificationLayout)
+                .setFullScreenIntent(pendingIntent, true)
+                .build()
+            startForeground(1, notification)
+            initialized = true
+            val br = object : BroadcastReceiver() {
+                override fun onReceive(context: android.content.Context?, intent: Intent?) {
+                    intent?.action?.let {
+                        if (intent.hasExtra(STREAM_TOGGLE_KEY))
+                            onAction(
+                                it,
+                                applies = intent.getBooleanExtra(STREAM_TOGGLE_KEY, false)
+                            )
+                        if (intent.hasExtra(STREAM_DATA_KEY))
+                            onAction(
+                                it,
+                                data = intent.getSerializableExtra(STREAM_DATA_KEY)!! as StreamData
+                            )
                     }
                 }
             }
-        }
+            sendThread = Thread()
+            recvThread = Thread()
 
-        val filter = IntentFilter(ROC_STREAM_SERVICE_INTENT_STRING).apply {
-            addAction(ACTION_TOGGLE_MUTE)
-            addAction(ACTION_TOGGLE_SEND)
-            addAction(ACTION_TOGGLE_RECEIVE)
-            addAction(ACTION_UPDATE_STREAM)
+            val filter = IntentFilter(ROC_STREAM_SERVICE_INTENT_STRING).apply {
+                addAction(ACTION_TOGGLE_MUTE)
+                addAction(ACTION_TOGGLE_SEND)
+                addAction(ACTION_TOGGLE_RECV)
+                addAction(ACTION_UPDATE_STREAM)
+            }
+
+            registerReceiver(br, filter)
         }
-        registerReceiver(br, filter)
 
         return START_STICKY
+    }
+
+
+    private fun onAction(action: String, data: StreamData? = null, applies: Boolean = false) {
+        when (action) {
+            ACTION_TOGGLE_RECV -> {
+                if (!applies && recvThread.isAlive) recvThread.interrupt()
+                if (applies && !recvThread.isAlive) {
+                    recvThread = Thread {
+                        Runnable {
+                            startReceiver(
+                                streamData.ip,
+                                streamData.portAudioRecv,
+                                streamData.portErrorRecv
+                            )
+                        }
+                    }
+                    recvThread.start()
+                }
+            }
+            ACTION_TOGGLE_SEND -> {
+                if (!applies && sendThread.isAlive) sendThread.interrupt()
+                if (applies && !sendThread.isAlive) {
+                    sendThread = Thread {
+                        Runnable {
+                            startSender(
+                                streamData.ip,
+                                streamData.portAudioSend,
+                                streamData.portErrorSend
+                            )
+                        }
+                    }
+                    sendThread.start()
+                }
+            }
+            ACTION_TOGGLE_MUTE -> {
+                TODO("Mute stream")
+            }
+            ACTION_UPDATE_STREAM -> {
+                val recvChanged = data!!.recvChanged(streamData)
+                val sendChanged = data.sendChanged(streamData)
+                streamData = data
+                if (recvChanged && recvThread.isAlive) {
+                    recvThread.interrupt()
+                    onAction(ACTION_TOGGLE_RECV, applies = true)
+                }
+                if (sendChanged && sendThread.isAlive) {
+                    sendThread.interrupt()
+                    onAction(ACTION_TOGGLE_SEND, applies = true)
+                }
+            }
+            else -> {
+                return // why are we here?
+            }
+        }
     }
 
     private fun createNotificationChannel() {
