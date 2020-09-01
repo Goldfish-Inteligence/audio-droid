@@ -1,12 +1,15 @@
 package org.rocstreaming.rocdroid
 
 import android.app.*
+import android.content.BroadcastReceiver
 import android.content.Intent
+import android.content.IntentFilter
 import android.media.*
 import android.media.AudioManager.AUDIO_SESSION_ID_GENERATE
 import android.media.AudioTrack.MODE_STREAM
 import android.os.Build
 import android.os.IBinder
+import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import org.rocstreaming.roctoolkit.*
 
@@ -16,10 +19,19 @@ class RocStreamService : Service() {
     companion object {
         const val CHANNEL_ID = "RocStreamServiceChannel"
         const val STREAM_DATA_KEY = "rocStreamData"
+        const val ROC_STREAM_SERVICE_INTENT_STRING = "ROC_STREAM_SERVICE_UPDATE"
+        const val ACTION_TOGGLE_MUTE = "ACTION_TOGGLE_MUTE"
+        const val ACTION_TOGGLE_SEND = "ACTION_TOGGLE_SEND"
+        const val ACTION_TOGGLE_RECEIVE = "ACTION_TOGGLE_RECEIVE"
+        const val ACTION_UPDATE_STREAM = "ACTION_UPDATE_STREAM"
     }
 
-    private lateinit var thread: Thread
+    private lateinit var receiveThread: Thread
+    private lateinit var sendThread: Thread
+    private lateinit var streamData: StreamData
 
+
+    // --------------- Roc-Sreaming calls --------------
 
     /**
      * Start roc sender, is already in separate thread
@@ -58,6 +70,7 @@ class RocStreamService : Service() {
         }
 
         audioRecord.release()
+        if (!receiveThread.isAlive) stopService(Intent(this, this.javaClass))
     }
 
     /**
@@ -96,6 +109,7 @@ class RocStreamService : Service() {
         }
 
         audioTrack.release()
+        if (!sendThread.isAlive) stopService(Intent(this, this.javaClass))
     }
 
 
@@ -150,31 +164,79 @@ class RocStreamService : Service() {
         )
     }
 
+    // ---------- Android callbacks ----------
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val streamData: StreamData = intent!!.extras!!.get(STREAM_DATA_KEY) as StreamData
+        streamData = intent!!.extras!!.get(STREAM_DATA_KEY) as StreamData
 
         createNotificationChannel()
         val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, 0)
+
+        val notificationLayout = RemoteViews(applicationContext.packageName, R.layout.notification)
+
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("RocStream Service")
-            .setContentText(streamData.ip)
             .setSmallIcon(android.R.drawable.presence_audio_online)
-            .setContentIntent(pendingIntent)
+            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            .setCustomContentView(notificationLayout)
+            .setFullScreenIntent(pendingIntent,true)
             .build()
         startForeground(1, notification)
 
-        thread = Thread {
+
+        sendThread = Thread {
             Runnable {
-                if (streamData.receiving)
-                    startReceiver(streamData.ip, streamData.portAudio, streamData.portError)
-                else
-                    startSender(streamData.ip, streamData.portAudio, streamData.portError)
+                startSender(streamData.ip, streamData.portAudioSend, streamData.portErrorSend)
             }
         }
-        thread.start()
+        receiveThread = Thread {
+            Runnable {
+                startReceiver(
+                    streamData.ip,
+                    streamData.portAudioReceive,
+                    streamData.portErrorReceive
+                )
+            }
+        }
+        if (streamData.sending && !sendThread.isAlive)
+            sendThread.start()
+        if (streamData.receiving && !receiveThread.isAlive)
+            receiveThread.start()
 
-        return START_REDELIVER_INTENT
+        val br = object : BroadcastReceiver() {
+            override fun onReceive(context: android.content.Context?, intent: Intent?) {
+                when (intent?.action) {
+                    ACTION_TOGGLE_RECEIVE -> {
+                        if (receiveThread.isAlive) receiveThread.interrupt()
+                        else receiveThread.start()
+                    }
+                    ACTION_TOGGLE_SEND -> {
+                        if (sendThread.isAlive) sendThread.interrupt()
+                        else sendThread.start()
+                    }
+                    ACTION_TOGGLE_MUTE -> {
+                        TODO("Mute stream")
+                    }
+                    ACTION_UPDATE_STREAM -> {
+
+                        TODO("Update Stream data")
+                    }
+                    else -> {
+                        return // why are we here?
+                    }
+                }
+            }
+        }
+
+        val filter = IntentFilter(ROC_STREAM_SERVICE_INTENT_STRING).apply {
+            addAction(ACTION_TOGGLE_MUTE)
+            addAction(ACTION_TOGGLE_SEND)
+            addAction(ACTION_TOGGLE_RECEIVE)
+            addAction(ACTION_UPDATE_STREAM)
+        }
+        registerReceiver(br, filter)
+
+        return START_STICKY
     }
 
     private fun createNotificationChannel() {
@@ -197,7 +259,7 @@ class RocStreamService : Service() {
     }
 
     override fun onDestroy() {
-        thread.interrupt()
+        sendThread.interrupt()
         super.onDestroy()
     }
 
