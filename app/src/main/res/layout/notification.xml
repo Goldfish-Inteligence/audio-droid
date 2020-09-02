@@ -16,6 +16,7 @@
     <Button
         android:id="@+id/button"
         style="@style/toggleReceiveButton"
+        android:background="@drawable/ic_toggle_receive_bg"
         android:layout_width="32dp"
         android:layout_height="32dp"
         android:layout_marginTop="10dp"
@@ -24,6 +25,7 @@
     <Button
         android:id="@+id/button2"
         style="@style/toggleSendButton"
+        android:background="@drawable/ic_toggle_send_bg"
         android:layout_width="32dp"
         android:layout_height="32dp"
         android:layout_marginTop="10dp"
@@ -32,6 +34,7 @@
     <Button
         android:id="@+id/button3"
         style="@style/toggleMicButton"
+        android:background="@drawable/ic_toggle_mic_bg"
         android:layout_width="32dp"
         android:layout_height="32dp"
         android:layout_marginTop="10dp"

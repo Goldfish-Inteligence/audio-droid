@@ -1,174 +1,52 @@
 package org.rocstreaming.rocdroid
 
+import android.annotation.SuppressLint
 import android.app.*
 import android.content.BroadcastReceiver
 import android.content.Intent
 import android.content.IntentFilter
-import android.media.*
-import android.media.AudioManager.AUDIO_SESSION_ID_GENERATE
-import android.media.AudioTrack.MODE_STREAM
 import android.os.Build
 import android.os.IBinder
+import android.provider.Settings
 import android.util.Log
-import android.widget.RemoteViews
+import android.widget.*
 import androidx.core.app.NotificationCompat
-import org.rocstreaming.roctoolkit.*
+import kotlin.time.Duration
+import kotlin.time.ExperimentalTime
 
 
-class RocStreamService : Service() {
+class RocStreamService : Service(), CtrlCallback {
 
     companion object {
         const val CHANNEL_ID = "RocStreamServiceChannel"
         const val STREAM_DATA_KEY = "STREAM_DATA_KEY"
-        const val STREAM_TOGGLE_KEY = "STREAM_TOGGLE_KEY"
+        const val STREAM_SET_FLAG = "STREAM_TOGGLE_KEY"
         const val ROC_STREAM_SERVICE_INTENT_STRING = "ROC_STREAM_SERVICE_UPDATE"
-        const val ACTION_TOGGLE_MUTE = "ACTION_TOGGLE_MUTE"
-        const val ACTION_TOGGLE_SEND = "ACTION_TOGGLE_SEND"
-        const val ACTION_TOGGLE_RECV = "ACTION_TOGGLE_RECEIVE"
+        const val ACTION_SET_MUTE = "ACTION_TOGGLE_MUTE"
+        const val ACTION_SET_DEAF = "ACTION_TOGGLE_DEAF"
+        const val ACTION_SET_SEND = "ACTION_TOGGLE_SEND"
+        const val ACTION_SET_RECV = "ACTION_TOGGLE_RECEIVE"
         const val ACTION_UPDATE_STREAM = "ACTION_UPDATE_STREAM"
     }
 
-    private var initialized = false
+    // update changes Stream - garbage collection ok (all 3)
+    private lateinit var streamData: StreamData
     private lateinit var recvThread: Thread
     private lateinit var sendThread: Thread
-    private lateinit var streamData: StreamData
 
+    // shouldn't change (only if service restarts)
+    private lateinit var ctrlCommunicator: CtrlCommunicator
 
-    // --------------- Roc-Sreaming calls --------------
+    private val audioStreaming = AudioStreaming()
 
-    /**
-     * Start roc sender, is already in separate thread
-     */
-    private fun startSender(ip: String, audioPort: Int, errorPort: Int) {
-
-        val audioRecord = createAudioRecord()
-
-        audioRecord.startRecording()
-        val config = SenderConfig.Builder(
-            SAMPLE_RATE,
-            ChannelSet.STEREO,
-            FrameEncoding.PCM_FLOAT
-        ).build()
-
-        Context().use { context ->
-            Sender(context, config).use { sender ->
-                sender.bind(Address(Family.AUTO, "0.0.0.0", 0))
-                sender.connect(
-                    PortType.AUDIO_SOURCE,
-                    Protocol.RTP_RS8M_SOURCE,
-                    Address(Family.AUTO, ip, audioPort)
-                )
-                sender.connect(
-                    PortType.AUDIO_REPAIR,
-                    Protocol.RS8M_REPAIR,
-                    Address(Family.AUTO, ip, errorPort)
-                )
-
-                val samples = FloatArray(BUFFER_SIZE)
-                while (!Thread.currentThread().isInterrupted) {
-                    audioRecord.read(samples, 0, samples.size, AudioRecord.READ_BLOCKING)
-                    sender.write(samples)
-                }
-            }
-        }
-
-        audioRecord.release()
-        if (!recvThread.isAlive) stopService(Intent(this, this.javaClass))
-    }
-
-    /**
-     * Start roc receiver, is already in separated thread and play samples via audioTrack
-     */
-    private fun startReceiver(ip: String, audioPort: Int, errorPort: Int) {
-
-        val audioTrack = createAudioTrack()
-
-        audioTrack.play()
-        val config = ReceiverConfig.Builder(
-            SAMPLE_RATE,
-            ChannelSet.STEREO,
-            FrameEncoding.PCM_FLOAT
-        ).build()
-
-        Context().use { context ->
-            Receiver(context, config).use { receiver ->
-                receiver.bind(
-                    PortType.AUDIO_SOURCE,
-                    Protocol.RTP_RS8M_SOURCE,
-                    Address(Family.AUTO, ip, audioPort)
-                )
-                receiver.bind(
-                    PortType.AUDIO_REPAIR,
-                    Protocol.RS8M_REPAIR,
-                    Address(Family.AUTO, ip, errorPort)
-                )
-
-                val samples = FloatArray(BUFFER_SIZE)
-                while (!Thread.currentThread().isInterrupted) {
-                    receiver.read(samples)
-                    audioTrack.write(samples, 0, samples.size, AudioTrack.WRITE_BLOCKING)
-                }
-            }
-        }
-
-        audioTrack.release()
-        if (!sendThread.isAlive) stopService(Intent(this, this.javaClass))
-    }
-
-
-    private fun createAudioRecord(): AudioRecord {
-        val audioFormat = AudioFormat.Builder()
-            .setSampleRate(SAMPLE_RATE)
-            .setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
-            .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO) // should be mono
-            .build()
-
-        val bufferSize = AudioRecord.getMinBufferSize(
-            audioFormat.sampleRate,
-            audioFormat.channelMask,
-            audioFormat.encoding
-        )
-
-        return AudioRecord(
-            // https://developer.android.com/reference/kotlin/android/media/MediaRecorder.AudioSource#voice_performance
-            // unsure if chosen correctly
-            @Suppress
-            MediaRecorder.AudioSource.VOICE_PERFORMANCE,
-            audioFormat.sampleRate,
-            audioFormat.channelMask,
-            audioFormat.encoding,
-            bufferSize
-        )
-    }
-
-    private fun createAudioTrack(): AudioTrack {
-        val audioAttributes = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_MEDIA)
-            .setFlags(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
-            .build()
-        val audioFormat = AudioFormat.Builder()
-            .setSampleRate(SAMPLE_RATE)
-            .setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
-            .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
-            .build()
-
-        val bufferSize = AudioTrack.getMinBufferSize(
-            audioFormat.sampleRate,
-            audioFormat.encoding,
-            audioFormat.channelMask
-        )
-
-        return AudioTrack(
-            audioAttributes,
-            audioFormat,
-            bufferSize,
-            MODE_STREAM,
-            AUDIO_SESSION_ID_GENERATE
-        )
-    }
+    var initialized = false
+    var controlSearching = false
 
     // ---------- Android callbacks ----------
 
+
+    // We don't want advertising, but yet need IDs
+    @SuppressLint("HardwareIds")
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (!initialized) {
             Log.i(CHANNEL_ID, "Service Start invoked!")
@@ -192,10 +70,10 @@ class RocStreamService : Service() {
             val br = object : BroadcastReceiver() {
                 override fun onReceive(context: android.content.Context?, intent: Intent?) {
                     intent?.action?.let {
-                        if (intent.hasExtra(STREAM_TOGGLE_KEY))
+                        if (intent.hasExtra(STREAM_SET_FLAG))
                             onAction(
                                 it,
-                                applies = intent.getBooleanExtra(STREAM_TOGGLE_KEY, false)
+                                applies = intent.getBooleanExtra(STREAM_SET_FLAG, false)
                             )
                         if (intent.hasExtra(STREAM_DATA_KEY))
                             onAction(
@@ -205,17 +83,23 @@ class RocStreamService : Service() {
                     }
                 }
             }
-            sendThread = Thread()
-            recvThread = Thread()
-
             val filter = IntentFilter(ROC_STREAM_SERVICE_INTENT_STRING).apply {
-                addAction(ACTION_TOGGLE_MUTE)
-                addAction(ACTION_TOGGLE_SEND)
-                addAction(ACTION_TOGGLE_RECV)
+                addAction(ACTION_SET_MUTE)
+                addAction(ACTION_SET_SEND)
+                addAction(ACTION_SET_RECV)
                 addAction(ACTION_UPDATE_STREAM)
             }
-
             registerReceiver(br, filter)
+
+            // Setup control communicator
+            val androidID = Settings.Secure.getString(
+                this.contentResolver,
+                Settings.Secure.ANDROID_ID
+            )
+            ctrlCommunicator = CtrlCommunicator(this, androidID, this)
+
+            sendThread = Thread()
+            recvThread = Thread()
         }
 
         return START_STICKY
@@ -224,51 +108,23 @@ class RocStreamService : Service() {
 
     private fun onAction(action: String, data: StreamData? = null, applies: Boolean = false) {
         when (action) {
-            ACTION_TOGGLE_RECV -> {
-                if (!applies && recvThread.isAlive) recvThread.interrupt()
-                if (applies && !recvThread.isAlive) {
-                    recvThread = Thread {
-                        Runnable {
-                            startReceiver(
-                                streamData.ip,
-                                streamData.portAudioRecv,
-                                streamData.portErrorRecv
-                            )
-                        }
-                    }
-                    recvThread.start()
-                }
+            ACTION_SET_RECV -> {
+                onTransmitAudio(sendThread.isAlive, applies)
             }
-            ACTION_TOGGLE_SEND -> {
-                if (!applies && sendThread.isAlive) sendThread.interrupt()
-                if (applies && !sendThread.isAlive) {
-                    sendThread = Thread {
-                        Runnable {
-                            startSender(
-                                streamData.ip,
-                                streamData.portAudioSend,
-                                streamData.portErrorSend
-                            )
-                        }
-                    }
-                    sendThread.start()
-                }
+            ACTION_SET_SEND -> {
+                onTransmitAudio(applies, recvThread.isAlive)
             }
-            ACTION_TOGGLE_MUTE -> {
-                TODO("Mute stream")
+            // actions during streaming - no locals should be used here
+            ACTION_SET_MUTE -> {
+                audioStreaming.muted = applies
+                onMuteAudio(audioStreaming.muted, audioStreaming.deafed)
+            }
+            ACTION_SET_DEAF -> {
+                audioStreaming.deafed = applies
+                onMuteAudio(audioStreaming.muted, audioStreaming.deafed)
             }
             ACTION_UPDATE_STREAM -> {
-                val recvChanged = data!!.recvChanged(streamData)
-                val sendChanged = data.sendChanged(streamData)
-                streamData = data
-                if (recvChanged && recvThread.isAlive) {
-                    recvThread.interrupt()
-                    onAction(ACTION_TOGGLE_RECV, applies = true)
-                }
-                if (sendChanged && sendThread.isAlive) {
-                    sendThread.interrupt()
-                    onAction(ACTION_TOGGLE_SEND, applies = true)
-                }
+                data?.let { onAudioStream(streamData) }
             }
             else -> {
                 return // why are we here?
@@ -299,5 +155,102 @@ class RocStreamService : Service() {
         sendThread.interrupt()
         super.onDestroy()
     }
+
+
+// ---------------- Server Callbacks ---------------
+
+    override fun onServerDiscovered(host: String, port: Int) {
+        streamData = streamData.modified(host)
+        ctrlCommunicator.connect(host, port)
+
+        controlSearching = false
+
+        Intent(MainActivity.INTENT_SEND_UPDATE).let {
+            it.action = MainActivity.UPDATE_DISPLAY_NAME
+            it.putExtra(MainActivity.UPDATE_IS_CONNECTED, true)
+            sendBroadcast(it)
+        }
+
+    }
+
+    override fun onDisplayName(displayName: String) {
+        Intent(MainActivity.INTENT_SEND_UPDATE).let {
+            it.action = MainActivity.UPDATE_DISPLAY_NAME
+            it.putExtra(MainActivity.UPDATE_CONNECTION, displayName)
+            sendBroadcast(it)
+        }
+    }
+
+    override fun onAudioStream(
+        recvAudioPort: Int,
+        recvRepairPort: Int,
+        sendAudioPort: Int,
+        sendRepairPort: Int
+    ) {
+        streamData = streamData.modified(
+            portAudioRecv = recvAudioPort,
+            portErrorRecv = recvRepairPort,
+            portAudioSend = sendAudioPort,
+            portErrorSend = sendRepairPort
+        )
+        onAudioStream(streamData, true)
+    }
+
+    private fun onAudioStream(streamData: StreamData, notify: Boolean = false) {
+        val recvChanged = streamData.recvChanged(streamData)
+        val sendChanged = streamData.sendChanged(streamData)
+        this.streamData = streamData
+        if (recvChanged && recvThread.isAlive) {
+            recvThread.interrupt()
+            onAction(ACTION_SET_RECV, applies = true)
+        }
+        if (sendChanged && sendThread.isAlive) {
+            sendThread.interrupt()
+            onAction(ACTION_SET_SEND, applies = true)
+        }
+        if (notify)
+            Intent(MainActivity.INTENT_SEND_UPDATE).let {
+                it.action = MainActivity.UPDATE_CONNECTION
+                it.putExtra(MainActivity.UPDATE_CONNECTION, streamData)
+                sendBroadcast(it)
+            }
+    }
+
+    override fun onMuteAudio(sendMute: Boolean, recvMute: Boolean) {
+        TODO("recvMute Implementation")
+    }
+
+    override fun onTransmitAudio(sendAudio: Boolean, recvAudio: Boolean) {
+        if (!recvAudio && recvThread.isAlive) recvThread.interrupt()
+        if (recvAudio && !recvThread.isAlive) {
+            recvThread = Thread {
+                Runnable {
+                    audioStreaming.startReceiver(
+                        streamData.ip,
+                        streamData.portAudioRecv,
+                        streamData.portErrorRecv
+                    )
+                }
+            }.apply { start() }
+        }
+        if (!sendAudio && sendThread.isAlive) sendThread.interrupt()
+        if (sendAudio && !sendThread.isAlive) {
+            sendThread = Thread {
+                Runnable {
+                    audioStreaming.startReceiver(
+                        streamData.ip,
+                        streamData.portAudioSend,
+                        streamData.portErrorSend
+                    )
+                }
+            }.apply { start() }
+        }
+    }
+
+    @ExperimentalTime
+    override fun onBatteryLogInterval(batterLogInterval: Duration) {
+        TODO("Not yet implemented")
+    }
+
 
 }
