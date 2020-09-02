@@ -5,12 +5,14 @@ import android.app.*
 import android.content.BroadcastReceiver
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
 import android.util.Log
 import android.widget.*
 import androidx.core.app.NotificationCompat
+import kotlin.concurrent.thread
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 
@@ -33,14 +35,15 @@ class RocStreamService : Service(), CtrlCallback {
     private lateinit var streamData: StreamData
     private lateinit var recvThread: Thread
     private lateinit var sendThread: Thread
+    private var batteryLogThread: Thread? = null
 
     // shouldn't change (only if service restarts)
     private lateinit var ctrlCommunicator: CtrlCommunicator
 
     private val audioStreaming = AudioStreaming()
 
-    var initialized = false
-    var controlSearching = false
+    private var initialized = false
+    private var controlSearching = false
 
     // ---------- Android callbacks ----------
 
@@ -61,7 +64,6 @@ class RocStreamService : Service(), CtrlCallback {
 
             val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.presence_audio_online)
-                .setStyle(NotificationCompat.DecoratedCustomViewStyle())
                 .setCustomContentView(notificationLayout)
                 .setFullScreenIntent(pendingIntent, true)
                 .build()
@@ -217,7 +219,8 @@ class RocStreamService : Service(), CtrlCallback {
     }
 
     override fun onMuteAudio(sendMute: Boolean, recvMute: Boolean) {
-        TODO("recvMute Implementation")
+        audioStreaming.muted = sendMute
+        audioStreaming.deafed = recvMute
     }
 
     override fun onTransmitAudio(sendAudio: Boolean, recvAudio: Boolean) {
@@ -249,7 +252,24 @@ class RocStreamService : Service(), CtrlCallback {
 
     @ExperimentalTime
     override fun onBatteryLogInterval(batterLogInterval: Duration) {
-        TODO("Not yet implemented")
+        batteryLogThread?.interrupt()
+        batteryLogThread = thread {
+            // This might cause garbage collection, lets hope not
+            val batteryStatus: Intent? =
+                IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { ifilter ->
+                    registerReceiver(null, ifilter)
+                }
+            val batteryPct: Double? = batteryStatus?.let { intent ->
+                val level: Int = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                val scale: Int = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                level.toDouble() / scale.toDouble()
+            }
+            val status: Int = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+            val isCharging: Boolean = status == BatteryManager.BATTERY_STATUS_CHARGING
+                    || status == BatteryManager.BATTERY_STATUS_FULL
+            ctrlCommunicator.sendBatteryLevel(batteryPct ?: 0.0, isCharging)
+            Thread.sleep(batterLogInterval.toLongMilliseconds())
+        }
     }
 
 
