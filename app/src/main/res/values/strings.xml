@@ -27,4 +27,7 @@
     <string name="send">Send</string>
     <string name="receive">Receive</string>
     <string name="update_settings">Update Settings</string>
+    <string name="connecting">Connecting ...</string>
+    <string name="mute">mute</string>
+    <string name="unmute">unmute</string>
 </resources>
