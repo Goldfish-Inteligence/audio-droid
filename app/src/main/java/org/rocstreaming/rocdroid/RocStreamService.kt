@@ -12,6 +12,7 @@ import android.provider.Settings
 import android.util.Log
 import android.widget.*
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import kotlin.concurrent.thread
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
@@ -29,7 +30,14 @@ class RocStreamService : Service(), CtrlCallback {
         const val ACTION_SET_SEND = "ACTION_TOGGLE_SEND"
         const val ACTION_SET_RECV = "ACTION_TOGGLE_RECEIVE"
         const val ACTION_UPDATE_STREAM = "ACTION_UPDATE_STREAM"
+        const val ROC_NOTIFICATION_INTENT = "ROC_NOTIFICATION_INTENT"
+        const val BUTTON_ACTION = "BUTTON_ACTION"
+        const val EXTRA_BUTTONID = "EXTRA_BUTTONID"
     }
+
+    private lateinit var bigNotificationLayout: RemoteViews
+    private lateinit var notificationLayout: RemoteViews
+    private lateinit var notiBuilder: NotificationCompat.Builder
 
     // update changes Stream - garbage collection ok (all 3)
     private lateinit var streamData: StreamData
@@ -56,18 +64,8 @@ class RocStreamService : Service(), CtrlCallback {
             streamData = intent!!.extras!!.get(STREAM_DATA_KEY) as StreamData
 
             createNotificationChannel()
-            val notificationIntent = Intent(this, MainActivity::class.java)
-            val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, 0)
-
-            val notificationLayout =
-                RemoteViews(applicationContext.packageName, R.layout.notification)
-
-            val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.presence_audio_online)
-                .setCustomContentView(notificationLayout)
-                .setFullScreenIntent(pendingIntent, true)
-                .build()
-            startForeground(1, notification)
+            notiBuilder = createNotification()
+            startForeground(1, notiBuilder.build())
             initialized = true
             val br = object : BroadcastReceiver() {
                 override fun onReceive(context: android.content.Context?, intent: Intent?) {
@@ -107,6 +105,71 @@ class RocStreamService : Service(), CtrlCallback {
         return START_STICKY
     }
 
+    private fun createNotification(): NotificationCompat.Builder {
+        Log.i(CHANNEL_ID, "mute: ${audioStreaming.muted}, deaf:${audioStreaming.deafed}")
+        notificationLayout =
+            RemoteViews(applicationContext.packageName, R.layout.notification)
+        bigNotificationLayout =
+            RemoteViews(applicationContext.packageName, R.layout.notification_big)
+
+        val notificationIntent = Intent(this, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, 0)
+        notificationLayout.setOnClickPendingIntent(R.id.textConnectionName, pendingIntent)
+        for (id in arrayOf(
+            R.id.buttonNotificationRecv,
+            R.id.buttonNotificationSend,
+            R.id.buttonNotificationMute,
+            R.id.buttonNotificationDeaf
+        )) {
+            val intent = Intent(ROC_NOTIFICATION_INTENT).apply {
+                action = BUTTON_ACTION
+                putExtra(EXTRA_BUTTONID, id)
+            }
+            val pending = PendingIntent.getBroadcast(this, 0, intent, 0)
+            notificationLayout.setOnClickPendingIntent(id, pending)
+            bigNotificationLayout.setOnClickPendingIntent(id, pending)
+        }
+
+
+        val builder: NotificationCompat.Builder = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setOnlyAlertOnce(true)
+            .setSmallIcon(android.R.drawable.presence_audio_online)
+            .setCustomContentView(notificationLayout)
+            .setCustomBigContentView(bigNotificationLayout)
+        createNotificationBR()
+        return builder
+    }
+
+    private fun createNotificationBR() {
+        val br = object : BroadcastReceiver() {
+            override fun onReceive(context: android.content.Context?, intent: Intent?) {
+                Log.i(CHANNEL_ID, "mute: ${audioStreaming.muted}, deaf:${audioStreaming.deafed}")
+                when (intent?.getIntExtra(EXTRA_BUTTONID, -1)) {
+                    R.id.buttonNotificationDeaf -> onMuteAudio(
+                        audioStreaming.muted,
+                        !audioStreaming.deafed
+                    )
+
+                    R.id.buttonNotificationMute -> onMuteAudio(
+                        !audioStreaming.muted,
+                        audioStreaming.deafed
+                    )
+                    R.id.buttonNotificationSend -> onTransmitAudio(
+                        !sendThread.isAlive,
+                        recvThread.isAlive
+                    )
+                    R.id.buttonNotificationRecv -> onTransmitAudio(
+                        sendThread.isAlive,
+                        !recvThread.isAlive
+                    )
+                }
+            }
+        }
+        val filter = IntentFilter(ROC_NOTIFICATION_INTENT).apply {
+            addAction(BUTTON_ACTION)
+        }
+        registerReceiver(br, filter)
+    }
 
     private fun onAction(action: String, data: StreamData? = null, applies: Boolean = false) {
         when (action) {
@@ -219,11 +282,21 @@ class RocStreamService : Service(), CtrlCallback {
     }
 
     override fun onMuteAudio(sendMute: Boolean, recvMute: Boolean) {
+        Log.i(CHANNEL_ID, "mute: $sendMute was ${audioStreaming.muted}, deaf:$recvMute was ${audioStreaming.deafed}")
         audioStreaming.muted = sendMute
         audioStreaming.deafed = recvMute
+        Log.i(CHANNEL_ID, "mute: ${audioStreaming.muted}, deaf:${audioStreaming.deafed}")
+        notificationLayout.setImageViewResource(
+            R.id.buttonNotificationMute,
+            if (sendMute) R.drawable.ic_mic_off_24 else R.drawable.ic_mic_on_24
+        )
+        notiBuilder.setCustomContentView(notificationLayout)
+        NotificationManagerCompat.from(this).notify(1, notiBuilder.build())
+
     }
 
     override fun onTransmitAudio(sendAudio: Boolean, recvAudio: Boolean) {
+        Log.i(CHANNEL_ID, "send: ${sendThread.isAlive}, recv:${recvThread.isAlive}")
         if (!recvAudio && recvThread.isAlive) recvThread.interrupt()
         if (recvAudio && !recvThread.isAlive) {
             recvThread = Thread {
