@@ -1,18 +1,19 @@
 package org.rocstreaming.rocdroid
 
-import android.annotation.SuppressLint
 import android.app.*
 import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
+import android.os.Binder
 import android.os.Build
 import android.os.IBinder
-import android.provider.Settings
 import android.util.Log
-import android.widget.*
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import java.util.*
+import kotlin.collections.ArrayDeque
 import kotlin.concurrent.thread
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
@@ -21,29 +22,32 @@ import kotlin.time.ExperimentalTime
 class RocStreamService : Service(), CtrlCallback {
 
     companion object {
-        const val CHANNEL_ID = "RocStreamServiceChannel"
-        const val STREAM_DATA_KEY = "STREAM_DATA_KEY"
-        const val STREAM_SET_FLAG = "STREAM_TOGGLE_KEY"
-        const val ROC_STREAM_SERVICE_INTENT_STRING = "ROC_STREAM_SERVICE_UPDATE"
-        const val ACTION_SET_MUTE = "ACTION_TOGGLE_MUTE"
-        const val ACTION_SET_DEAF = "ACTION_TOGGLE_DEAF"
-        const val ACTION_SET_SEND = "ACTION_TOGGLE_SEND"
-        const val ACTION_SET_RECV = "ACTION_TOGGLE_RECEIVE"
-        const val ACTION_UPDATE_STREAM = "ACTION_UPDATE_STREAM"
-        const val ROC_NOTIFICATION_INTENT = "ROC_NOTIFICATION_INTENT"
-        const val BUTTON_ACTION = "BUTTON_ACTION"
-        const val EXTRA_BUTTONID = "EXTRA_BUTTONID"
+        const val PREFIX = "ROC_DROID_"
+        const val CHANNEL_ID = PREFIX + "SERVICE_CHANNEL"
+        const val STREAM_DATA_KEY = PREFIX + "STREAM_DATA_KEY"
+        const val NOTIFICATION_PREFIX = PREFIX + "NOTIFICATION_"
+        const val ACTION_EXTRA = "ACTION_EXTRA"
+        const val ACTION_SET_MUTE = "MUTE"
+        const val ACTION_SET_DEAF = "DEAF"
+        const val ACTION_SET_SEND = "SEND"
+        const val ACTION_SET_RECV = "RECEIVE"
+        const val ACTION_CONNECT = "CONNECT"
+        const val UPDATE_SETTINGS = "UPDATE_SETTINGS"
+        const val UID = "USER_ID"
+        const val CONTROL_NOTIFICATION_ID = 0x10
+        const val SEND_NOTIFICATION_ID = 0x20
+        const val RECEIVE_NOTIFICATION_ID = 0x30
     }
 
-    private lateinit var bigNotificationLayout: RemoteViews
-    private lateinit var notificationLayout: RemoteViews
-    private lateinit var notiBuilder: NotificationCompat.Builder
+
+    private val binder: IBinder = RocStreamBinder()
 
     // update changes Stream - garbage collection ok (all 3)
     private lateinit var streamData: StreamData
     private lateinit var recvThread: Thread
     private lateinit var sendThread: Thread
     private var batteryLogThread: Thread? = null
+    private lateinit var notificationManagerCompat: NotificationManagerCompat
 
     // shouldn't change (only if service restarts)
     private lateinit var ctrlCommunicator: CtrlCommunicator
@@ -56,117 +60,163 @@ class RocStreamService : Service(), CtrlCallback {
     // ---------- Android callbacks ----------
 
 
-    // We don't want advertising, but yet need IDs
-    @SuppressLint("HardwareIds")
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (!initialized) {
-            Log.i(CHANNEL_ID, "Service Start invoked!")
-            streamData = intent!!.extras!!.get(STREAM_DATA_KEY) as StreamData
-
-            createNotificationChannel()
-            notiBuilder = createNotification()
-            startForeground(1, notiBuilder.build())
             initialized = true
-            val br = object : BroadcastReceiver() {
-                override fun onReceive(context: android.content.Context?, intent: Intent?) {
-                    intent?.action?.let {
-                        if (intent.hasExtra(STREAM_SET_FLAG))
-                            onAction(
-                                it,
-                                applies = intent.getBooleanExtra(STREAM_SET_FLAG, false)
-                            )
-                        if (intent.hasExtra(STREAM_DATA_KEY))
-                            onAction(
-                                it,
-                                data = intent.getSerializableExtra(STREAM_DATA_KEY)!! as StreamData
-                            )
-                    }
-                }
-            }
-            val filter = IntentFilter(ROC_STREAM_SERVICE_INTENT_STRING).apply {
-                addAction(ACTION_SET_MUTE)
-                addAction(ACTION_SET_SEND)
-                addAction(ACTION_SET_RECV)
-                addAction(ACTION_UPDATE_STREAM)
-            }
-            registerReceiver(br, filter)
-
-            // Setup control communicator
-            val androidID = Settings.Secure.getString(
-                this.contentResolver,
-                Settings.Secure.ANDROID_ID
-            )
-            ctrlCommunicator = CtrlCommunicator(this, androidID, this)
+            Log.i(CHANNEL_ID, "---------------- service Started ----------------")
+            streamData = intent!!.extras!!.get(STREAM_DATA_KEY) as StreamData
 
             sendThread = Thread()
             recvThread = Thread()
+
+            createNotificationChannel()
+            notificationManagerCompat = NotificationManagerCompat.from(this)
+            startForeground(CONTROL_NOTIFICATION_ID, createControlNotification("Connecting", "-"))
+
+            initBR()
+
+            // Setup control communicator
+            // generate id
+            val sharedPref = getSharedPreferences(UID, Context.MODE_PRIVATE)
+            val defaultValue = UUID.randomUUID().toString()
+            val userID = sharedPref.getString(UID, defaultValue) ?: defaultValue
+            if (userID == defaultValue)
+                with(sharedPref.edit()) {
+                    putString(UID, userID)
+                    commit()
+                }
+            if (intent.getBooleanExtra(ACTION_CONNECT, false)) {
+                ctrlCommunicator = CtrlCommunicator(this, userID, this)
+                ctrlCommunicator.searchServer()
+            }
+
+
         }
 
         return START_STICKY
     }
 
-    private fun createNotification(): NotificationCompat.Builder {
-        Log.i(CHANNEL_ID, "mute: ${audioStreaming.muted}, deaf:${audioStreaming.deafed}")
-        notificationLayout =
-            RemoteViews(applicationContext.packageName, R.layout.notification)
-        bigNotificationLayout =
-            RemoteViews(applicationContext.packageName, R.layout.notification_big)
+    private fun createControlNotification(
+        status: String,
+        server: String
+    ): Notification? {
+        return createNotification(
+            status,
+            text = server,
+            action1 = ACTION_SET_RECV,
+            action2 = ACTION_SET_SEND,
+            requestCodePrefix = CONTROL_NOTIFICATION_ID,
+            extra1 = true,
+            extra2 = true
+        )
+    }
 
+    private fun createSendNotification(muted: Boolean): Notification? {
+        return createNotification(
+            "Sending audio",
+            text = if (muted) "Muted" else "Unmuted",
+            action1 = if (muted) "UN$ACTION_SET_MUTE" else ACTION_SET_MUTE,
+            action2 = ACTION_SET_SEND,
+            requestCodePrefix = SEND_NOTIFICATION_ID,
+            extra1 = !muted,
+            extra2 = false
+        )
+    }
+
+    private fun createRecvNotification(muted: Boolean): Notification? {
+        return createNotification(
+            "Receiving audio",
+            text = if (muted) "Deafed" else "Listening",
+            action1 = if (muted) "UN$ACTION_SET_DEAF" else ACTION_SET_DEAF,
+            action2 = ACTION_SET_RECV,
+            requestCodePrefix = RECEIVE_NOTIFICATION_ID,
+            extra1 = !muted,
+            extra2 = false
+        )
+    }
+
+    private fun createNotification(
+        title: String,
+        text: String = "",
+        action1: String,
+        action2: String,
+        requestCodePrefix: Int,
+        extra1: Boolean,
+        extra2: Boolean
+    ): Notification? {
         val notificationIntent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, 0)
-        notificationLayout.setOnClickPendingIntent(R.id.textConnectionName, pendingIntent)
-        for (id in arrayOf(
-            R.id.buttonNotificationRecv,
-            R.id.buttonNotificationSend,
-            R.id.buttonNotificationMute,
-            R.id.buttonNotificationDeaf
-        )) {
-            val intent = Intent(ROC_NOTIFICATION_INTENT).apply {
-                action = BUTTON_ACTION
-                putExtra(EXTRA_BUTTONID, id)
-            }
-            val pending = PendingIntent.getBroadcast(this, 0, intent, 0)
-            notificationLayout.setOnClickPendingIntent(id, pending)
-            bigNotificationLayout.setOnClickPendingIntent(id, pending)
-        }
-
-
+        val pendingIntent = PendingIntent.getActivity(this, 1, notificationIntent, 0)
         val builder: NotificationCompat.Builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setOnlyAlertOnce(true)
             .setSmallIcon(android.R.drawable.presence_audio_online)
-            .setCustomContentView(notificationLayout)
-            .setCustomBigContentView(bigNotificationLayout)
-        createNotificationBR()
-        return builder
+            .setContentTitle(title)
+            .setContentText(text)
+            .setContentIntent(pendingIntent)
+
+        builder.addAction(
+            0,
+            action1,
+            PendingIntent.getBroadcast(
+                this,
+                requestCodePrefix,
+                Intent(NOTIFICATION_PREFIX + action1).also {
+                    it.putExtra(ACTION_SET_MUTE, extra1)
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT
+            )
+        )
+        builder.addAction(
+            0,
+            ACTION_SET_SEND,
+            PendingIntent.getBroadcast(
+                this,
+                requestCodePrefix + 1,
+                Intent(NOTIFICATION_PREFIX + action2).also {
+                    it.putExtra(ACTION_SET_SEND, extra2)
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT
+            )
+        )
+        return builder.build()
     }
 
-    private fun createNotificationBR() {
-        val br = object : BroadcastReceiver() {
-            override fun onReceive(context: android.content.Context?, intent: Intent?) {
-                Log.i(CHANNEL_ID, "mute: ${audioStreaming.muted}, deaf:${audioStreaming.deafed}")
-                when (intent?.getIntExtra(EXTRA_BUTTONID, -1)) {
-                    R.id.buttonNotificationDeaf -> onMuteAudio(
-                        audioStreaming.muted,
-                        !audioStreaming.deafed
-                    )
 
-                    R.id.buttonNotificationMute -> onMuteAudio(
-                        !audioStreaming.muted,
-                        audioStreaming.deafed
-                    )
-                    R.id.buttonNotificationSend -> onTransmitAudio(
-                        !sendThread.isAlive,
-                        recvThread.isAlive
-                    )
-                    R.id.buttonNotificationRecv -> onTransmitAudio(
-                        sendThread.isAlive,
-                        !recvThread.isAlive
-                    )
+    private fun initBR() {
+        val br = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                intent?.action?.let {
+                    val action = it.substringAfter(NOTIFICATION_PREFIX)
+                    when (action) {
+                        ACTION_SET_MUTE -> onMuteAudio(false, recvThread.isAlive)
+                        "UN$ACTION_SET_MUTE" -> onMuteAudio(true, recvThread.isAlive)
+
+                        ACTION_SET_DEAF -> onMuteAudio(sendThread.isAlive, false)
+                        "UN$ACTION_SET_DEAF" -> onMuteAudio(sendThread.isAlive, true)
+
+                        ACTION_SET_SEND -> onTransmitAudio(
+                            intent.getBooleanExtra(ACTION_SET_SEND, sendThread.isAlive),
+                            recvThread.isAlive
+                        )
+                        ACTION_SET_RECV -> onTransmitAudio(
+                            sendThread.isAlive,
+                            intent.getBooleanExtra(ACTION_SET_SEND, recvThread.isAlive)
+                        )
+                        UPDATE_SETTINGS ->
+                            onAudioStream(intent.getSerializableExtra(UPDATE_SETTINGS) as StreamData)
+                        ACTION_CONNECT -> ctrlCommunicator.searchServer()
+                    }
                 }
             }
         }
-        val filter = IntentFilter(ROC_NOTIFICATION_INTENT).apply {
-            addAction(BUTTON_ACTION)
+
+        val filter = IntentFilter().apply {
+            addAction(NOTIFICATION_PREFIX + ACTION_SET_MUTE)
+            addAction(NOTIFICATION_PREFIX + "UN$ACTION_SET_MUTE")
+            addAction(NOTIFICATION_PREFIX + ACTION_SET_DEAF)
+            addAction(NOTIFICATION_PREFIX + "UN$ACTION_SET_DEAF")
+            addAction(NOTIFICATION_PREFIX + ACTION_SET_SEND)
+            addAction(NOTIFICATION_PREFIX + ACTION_SET_RECV)
+            addAction(NOTIFICATION_PREFIX + UPDATE_SETTINGS)
         }
         registerReceiver(br, filter)
     }
@@ -188,7 +238,7 @@ class RocStreamService : Service(), CtrlCallback {
                 audioStreaming.deafed = applies
                 onMuteAudio(audioStreaming.muted, audioStreaming.deafed)
             }
-            ACTION_UPDATE_STREAM -> {
+            UPDATE_SETTINGS -> {
                 data?.let { onAudioStream(streamData) }
             }
             else -> {
@@ -211,13 +261,21 @@ class RocStreamService : Service(), CtrlCallback {
         }
     }
 
+    inner class RocStreamBinder : Binder() {
+        fun getService(): RocStreamService = this@RocStreamService
+    }
 
     override fun onBind(intent: Intent?): IBinder? {
-        return null
+        return binder
     }
 
     override fun onDestroy() {
         sendThread.interrupt()
+        recvThread.interrupt()
+        notificationManagerCompat.cancel(RECEIVE_NOTIFICATION_ID)
+        notificationManagerCompat.cancel(SEND_NOTIFICATION_ID)
+        notificationManagerCompat.cancel(CONTROL_NOTIFICATION_ID)
+        ctrlCommunicator.stopConnection()
         super.onDestroy()
     }
 
@@ -229,6 +287,7 @@ class RocStreamService : Service(), CtrlCallback {
         ctrlCommunicator.connect(host, port)
 
         controlSearching = false
+        startForeground(CONTROL_NOTIFICATION_ID, createControlNotification("Connected", "-"))
 
         Intent(MainActivity.INTENT_SEND_UPDATE).let {
             it.action = MainActivity.UPDATE_DISPLAY_NAME
@@ -239,6 +298,10 @@ class RocStreamService : Service(), CtrlCallback {
     }
 
     override fun onDisplayName(displayName: String) {
+        startForeground(
+            CONTROL_NOTIFICATION_ID,
+            createControlNotification("Connected", displayName)
+        )
         Intent(MainActivity.INTENT_SEND_UPDATE).let {
             it.action = MainActivity.UPDATE_DISPLAY_NAME
             it.putExtra(MainActivity.UPDATE_CONNECTION, displayName)
@@ -282,23 +345,26 @@ class RocStreamService : Service(), CtrlCallback {
     }
 
     override fun onMuteAudio(sendMute: Boolean, recvMute: Boolean) {
-        Log.i(CHANNEL_ID, "mute: $sendMute was ${audioStreaming.muted}, deaf:$recvMute was ${audioStreaming.deafed}")
         audioStreaming.muted = sendMute
         audioStreaming.deafed = recvMute
-        Log.i(CHANNEL_ID, "mute: ${audioStreaming.muted}, deaf:${audioStreaming.deafed}")
-        notificationLayout.setImageViewResource(
-            R.id.buttonNotificationMute,
-            if (sendMute) R.drawable.ic_mic_off_24 else R.drawable.ic_mic_on_24
+        if (recvThread.isAlive) startForeground(
+            RECEIVE_NOTIFICATION_ID,
+            createRecvNotification(recvMute)
         )
-        notiBuilder.setCustomContentView(notificationLayout)
-        NotificationManagerCompat.from(this).notify(1, notiBuilder.build())
-
+        if (sendThread.isAlive) startForeground(
+            SEND_NOTIFICATION_ID,
+            createRecvNotification(sendMute)
+        )
     }
 
     override fun onTransmitAudio(sendAudio: Boolean, recvAudio: Boolean) {
         Log.i(CHANNEL_ID, "send: ${sendThread.isAlive}, recv:${recvThread.isAlive}")
-        if (!recvAudio && recvThread.isAlive) recvThread.interrupt()
+        if (!recvAudio && recvThread.isAlive) {
+            recvThread.interrupt()
+            notificationManagerCompat.cancel(RECEIVE_NOTIFICATION_ID)
+        }
         if (recvAudio && !recvThread.isAlive) {
+            startForeground(RECEIVE_NOTIFICATION_ID, createRecvNotification(audioStreaming.deafed))
             recvThread = Thread {
                 Runnable {
                     audioStreaming.startReceiver(
@@ -309,11 +375,15 @@ class RocStreamService : Service(), CtrlCallback {
                 }
             }.apply { start() }
         }
-        if (!sendAudio && sendThread.isAlive) sendThread.interrupt()
+        if (!sendAudio && sendThread.isAlive) {
+            sendThread.interrupt()
+            notificationManagerCompat.cancel(SEND_NOTIFICATION_ID)
+        }
         if (sendAudio && !sendThread.isAlive) {
+            startForeground(SEND_NOTIFICATION_ID, createSendNotification(audioStreaming.muted))
             sendThread = Thread {
                 Runnable {
-                    audioStreaming.startReceiver(
+                    audioStreaming.startSender(
                         streamData.ip,
                         streamData.portAudioSend,
                         streamData.portErrorSend

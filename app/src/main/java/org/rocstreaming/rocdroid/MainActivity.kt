@@ -1,13 +1,11 @@
 package org.rocstreaming.rocdroid
 
 import android.Manifest
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
+import android.content.*
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.IBinder
 import android.view.View
 import android.widget.*
 import androidx.annotation.RequiresApi
@@ -43,6 +41,21 @@ class MainActivity : AppCompatActivity() {
 
     private var controlConnected = false
 
+    private lateinit var service: RocStreamService
+    private var rocBound = false
+    private val connection = object : ServiceConnection {
+        override fun onServiceDisconnected(name: ComponentName?) {
+            rocBound = false
+        }
+
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            val binder = service as RocStreamService.RocStreamBinder
+            this@MainActivity.service = binder.getService()
+            rocBound = true
+        }
+
+    }
+
     @RequiresApi(Build.VERSION_CODES.P)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,6 +72,19 @@ class MainActivity : AppCompatActivity() {
         initBroadcastReceiver()
 
         ActivityCompat.requestPermissions(this, permissions, REQUEST_RECORD_AUDIO_PERMISSION)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        Intent(this,RocStreamService::class.java).also {
+            bindService(it,connection,Context.BIND_AUTO_CREATE)
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        unbindService(connection)
+        rocBound = false
     }
 
     override fun onRequestPermissionsResult(
@@ -82,11 +108,8 @@ class MainActivity : AppCompatActivity() {
      * Start roc sender in separated thread and play samples via audioTrack
      */
     private fun toggleSend(send: Boolean) {
-        // enure it is running
-        startService()
-        val intent = Intent(RocStreamService.ROC_STREAM_SERVICE_INTENT_STRING)
-        intent.putExtra(RocStreamService.STREAM_SET_FLAG, send)
-        intent.action = RocStreamService.ACTION_SET_SEND
+        val intent = Intent(RocStreamService.NOTIFICATION_PREFIX + RocStreamService.ACTION_SET_SEND)
+        intent.putExtra(RocStreamService.ACTION_SET_SEND, send)
         sendBroadcast(intent)
     }
 
@@ -94,68 +117,51 @@ class MainActivity : AppCompatActivity() {
      * Start roc sender in separated thread and play samples via audioTrack
      */
     private fun toggleRecv(recv: Boolean) {
-        // enure it is running
-        startService()
-        val intent = Intent(RocStreamService.ROC_STREAM_SERVICE_INTENT_STRING)
-        intent.putExtra(RocStreamService.STREAM_SET_FLAG, recv)
-        intent.action = RocStreamService.ACTION_SET_RECV
+        val intent = Intent(RocStreamService.NOTIFICATION_PREFIX + RocStreamService.ACTION_SET_RECV)
+        intent.putExtra(RocStreamService.ACTION_SET_RECV, recv)
         sendBroadcast(intent)
 
     }
 
     private fun toggleMic(unmute: Boolean) {
-        // enure it is running
-        startService()
-        val intent = Intent(RocStreamService.ROC_STREAM_SERVICE_INTENT_STRING)
-        intent.putExtra(RocStreamService.STREAM_SET_FLAG, unmute)
-        intent.action = RocStreamService.ACTION_SET_MUTE
+        val intent = Intent(
+            RocStreamService.NOTIFICATION_PREFIX +
+                    (if (unmute) "UN${RocStreamService.ACTION_SET_MUTE}"
+                    else RocStreamService.ACTION_SET_MUTE)
+        )
         sendBroadcast(intent)
 
     }
 
 
     fun toggleControl(view: View) {
-        if (controlConnected) {
-            val serviceIntent = Intent(this, RocStreamService::class.java)
-            stopService(serviceIntent)
-            TODO("Invoke socket disconnect")
-        } else {
-            startService()
-        }
 
     }
 
 
     fun saveSettings(view: View) {
         val stream = findViewById<View>(R.id.stream)
-        val address = stream.findViewById<Spinner>(R.id.ipEditText).selectedItem as InetAddress
+        val address = stream.findViewById<EditText>(R.id.ipEditText).text.toString()
         val audioRecvPort =
-            Integer.parseInt(stream.findViewById<EditText>(R.id.portAudioEditText).text.toString())
+            stream.findViewById<EditText>(R.id.portAudioEditText).text.toString().toIntOrNull()
         val errorRecvPort =
-            Integer.parseInt(stream.findViewById<EditText>(R.id.portErrorEditText).text.toString())
+            stream.findViewById<EditText>(R.id.portErrorEditText).text.toString().toIntOrNull()
         val audioSendPort =
-            Integer.parseInt(stream.findViewById<EditText>(R.id.portAudioEditTextSend).text.toString())
+            stream.findViewById<EditText>(R.id.portAudioEditTextSend).text.toString().toIntOrNull()
         val errorSendPort =
-            Integer.parseInt(stream.findViewById<EditText>(R.id.portErrorEditTextSend).text.toString())
+            stream.findViewById<EditText>(R.id.portErrorEditTextSend).text.toString().toIntOrNull()
 
         val streamData = StreamData(
-            ip = address.hostAddress,
-            portAudioSend = audioSendPort,
-            portErrorSend = errorSendPort,
-            portAudioRecv = audioRecvPort,
-            portErrorRecv = errorRecvPort
+            ip = address,
+            portAudioSend = audioSendPort ?: 0,
+            portErrorSend = errorSendPort ?: 0,
+            portAudioRecv = audioRecvPort ?: 0,
+            portErrorRecv = errorRecvPort ?: 0
         )
-        Intent(RocStreamService.ROC_STREAM_SERVICE_INTENT_STRING).let {
-            it.action = RocStreamService.ACTION_UPDATE_STREAM
-            it.putExtra(RocStreamService.STREAM_DATA_KEY, streamData)
+        Intent(RocStreamService.NOTIFICATION_PREFIX + RocStreamService.UPDATE_SETTINGS).let {
+            it.putExtra(RocStreamService.UPDATE_SETTINGS, streamData)
             sendBroadcast(it)
         }
-    }
-
-    private fun startService() {
-        val intent = Intent(this, RocStreamService::class.java)
-        intent.putExtra(RocStreamService.STREAM_DATA_KEY, streamData)
-        ContextCompat.startForegroundService(this, intent)
     }
 
     private fun initBroadcastReceiver() {
