@@ -69,7 +69,7 @@ class CtrlCommunicator(// cant get this to work without nullable
             override fun onServiceResolved(serviceInfo: NsdServiceInfo?) {
                 autoHost = serviceInfo?.host?.hostName ?: ""
                 autoPort = serviceInfo?.port ?: 0
-                if (autoPort > 0 && autoHost.length > 0) {
+                if (autoPort != 0 && autoHost.isNotEmpty()) {
                     callbacks.onServerDiscovered(autoHost, autoPort)
                     nsdManager?.stopServiceDiscovery(discoveryListener)
                     discovery = false
@@ -90,11 +90,9 @@ class CtrlCommunicator(// cant get this to work without nullable
             }
 
             override fun onStopDiscoveryFailed(p0: String?, p1: Int) {
-                TODO("Not yet implemented")
             }
 
             override fun onStartDiscoveryFailed(p0: String?, p1: Int) {
-                TODO("Not yet implemented")
             }
 
             override fun onDiscoveryStarted(p0: String?) {
@@ -106,7 +104,7 @@ class CtrlCommunicator(// cant get this to work without nullable
             }
 
             override fun onServiceLost(p0: NsdServiceInfo?) {
-                TODO("Not yet implemented")
+
             }
         }
 
@@ -123,7 +121,11 @@ class CtrlCommunicator(// cant get this to work without nullable
     }
 
     fun sendLogMsg(message: String) {
-        TODO("Not yet implemented")
+        val command = JSONObject()
+        command.put("type", "LogMsg")
+        command.put("message", message)
+
+        socket?.getOutputStream()?.write(command.toString().toByteArray())
     }
 
     fun sendDisplayName(displayName: String) {
@@ -140,15 +142,32 @@ class CtrlCommunicator(// cant get this to work without nullable
         sendAudioPort: Int,
         sendRepairPort: Int
     ) {
-        TODO("Not yet implemented")
+        val command = JSONObject()
+        command.put("type", "AudioStream")
+        command.put("recv_audio_port", recvAudioPort)
+        command.put("recv_repair_port", recvRepairPort)
+        command.put("send_audio_port", sendAudioPort)
+        command.put("send_repair_port", sendRepairPort)
+
+        socket?.getOutputStream()?.write(command.toString().toByteArray())
     }
 
     fun sendMuteAudio(sendMute: Boolean, recvMute: Boolean) {
-        TODO("Not yet implemented")
+        val command = JSONObject()
+        command.put("type", "MuteAudio")
+        command.put("send_mute", sendMute)
+        command.put("recv_mute", recvMute)
+
+        socket?.getOutputStream()?.write(command.toString().toByteArray())
     }
 
     fun sendTransmitAudio(sendAudio: Boolean, recvAudio: Boolean) {
-        TODO("Not yet implemented")
+        val command = JSONObject()
+        command.put("type", "TransmitAudio")
+        command.put("send_audio", sendAudio)
+        command.put("recv_audio", recvAudio)
+
+        socket?.getOutputStream()?.write(command.toString().toByteArray())
     }
 
     fun searchServer() {
@@ -168,10 +187,14 @@ class CtrlCommunicator(// cant get this to work without nullable
 
     }
 
+    fun connected(): Boolean {
+        return socket?.isConnected ?: false
+    }
+
     fun connect(host: String, port: Int) {
         socket = Socket(host, port)
 
-        val command = JSONObject();
+        val command = JSONObject()
         command.put("type", "Hello")
         command.put("client_name", deviceId)
 
