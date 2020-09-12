@@ -351,6 +351,12 @@ class RocStreamService : Service(), CtrlCallback {
                 it.putExtra(MainActivity.UPDATE_CONNECTION, streamData)
                 sendBroadcast(it)
             }
+        ctrlCommunicator.sendAudioStream(
+            streamData.portAudioRecv,
+            streamData.portErrorRecv,
+            streamData.portAudioSend,
+            streamData.portErrorSend
+        )
     }
 
     override fun onMuteAudio(sendMute: Boolean, recvMute: Boolean) {
@@ -364,6 +370,7 @@ class RocStreamService : Service(), CtrlCallback {
             SEND_NOTIFICATION_ID,
             createRecvNotification(sendMute)
         )
+        ctrlCommunicator.sendMuteAudio(sendMute, recvMute)
     }
 
 
@@ -401,6 +408,7 @@ class RocStreamService : Service(), CtrlCallback {
                 )
             }
         }
+        ctrlCommunicator.sendTransmitAudio(sendAudio, recvAudio)
     }
 
     @ExperimentalTime
