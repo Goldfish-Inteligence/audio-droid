@@ -5,6 +5,9 @@ import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import org.json.JSONObject
 import java.net.Socket
+import java.util.concurrent.BlockingQueue
+import java.util.concurrent.LinkedBlockingQueue
+import kotlin.concurrent.thread
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 
@@ -49,6 +52,7 @@ interface CtrlCallback {
 class CtrlCommunicator(// cant get this to work without nullable
     private var callbacks: CtrlCallback, private val deviceId: String, context: Context
 ) {
+    private lateinit var socketThread: Thread
     private var discovery: Boolean = false
     private var socket: Socket? = null
 
@@ -59,6 +63,8 @@ class CtrlCommunicator(// cant get this to work without nullable
     private var nsdManager: NsdManager? = null
     private var autoHost: String = ""
     private var autoPort: Int = 0
+
+    private val commands: BlockingQueue<JSONObject> = LinkedBlockingQueue<JSONObject>()
 
     private val resolveListener: NsdManager.ResolveListener =
         object : NsdManager.ResolveListener {
@@ -117,7 +123,8 @@ class CtrlCommunicator(// cant get this to work without nullable
         command.put("type", "BatteryLevel")
         command.put("level", level)
         command.put("is_charging", isCharging)
-        socket?.getOutputStream()?.write(command.toString().toByteArray())
+
+        commands.offer(command)
     }
 
     fun sendLogMsg(message: String) {
@@ -125,7 +132,7 @@ class CtrlCommunicator(// cant get this to work without nullable
         command.put("type", "LogMsg")
         command.put("message", message)
 
-        socket?.getOutputStream()?.write(command.toString().toByteArray())
+        commands.offer(command)
     }
 
     fun sendDisplayName(displayName: String) {
@@ -133,7 +140,7 @@ class CtrlCommunicator(// cant get this to work without nullable
         command.put("type", "DisplayName")
         command.put("display_name", displayName)
 
-        socket?.getOutputStream()?.write(command.toString().toByteArray())
+        commands.offer(command)
     }
 
     fun sendAudioStream(
@@ -149,7 +156,7 @@ class CtrlCommunicator(// cant get this to work without nullable
         command.put("send_audio_port", sendAudioPort)
         command.put("send_repair_port", sendRepairPort)
 
-        socket?.getOutputStream()?.write(command.toString().toByteArray())
+        commands.offer(command)
     }
 
     fun sendMuteAudio(sendMute: Boolean, recvMute: Boolean) {
@@ -158,7 +165,7 @@ class CtrlCommunicator(// cant get this to work without nullable
         command.put("send_mute", sendMute)
         command.put("recv_mute", recvMute)
 
-        socket?.getOutputStream()?.write(command.toString().toByteArray())
+        commands.offer(command)
     }
 
     fun sendTransmitAudio(sendAudio: Boolean, recvAudio: Boolean) {
@@ -167,7 +174,7 @@ class CtrlCommunicator(// cant get this to work without nullable
         command.put("send_audio", sendAudio)
         command.put("recv_audio", recvAudio)
 
-        socket?.getOutputStream()?.write(command.toString().toByteArray())
+        commands.offer(command)
     }
 
     fun searchServer() {
@@ -198,8 +205,12 @@ class CtrlCommunicator(// cant get this to work without nullable
         command.put("type", "Hello")
         command.put("client_name", deviceId)
 
-        socket?.getOutputStream()?.write(command.toString().toByteArray())
+        commands.offer(command)
 
-        socket?.getOutputStream()
+        val output = socket?.getOutputStream()
+        socketThread = thread(start = true) {
+            while (socket?.isConnected == true)
+                output?.write(commands.take().toString().toByteArray())
+        }
     }
 }
