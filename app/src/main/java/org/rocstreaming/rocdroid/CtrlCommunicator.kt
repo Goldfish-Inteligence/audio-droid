@@ -12,9 +12,16 @@ interface CtrlCallback {
     fun onServerDiscovered(host: String, port: Int)
 
     fun onDisplayName(displayName: String)
-    fun onAudioStream(recvAudioPort: Int, recvRepairPort: Int, sendAudioPort: Int, sendRepairPort: Int)
+    fun onAudioStream(
+        recvAudioPort: Int,
+        recvRepairPort: Int,
+        sendAudioPort: Int,
+        sendRepairPort: Int
+    )
+
     fun onMuteAudio(sendMute: Boolean, recvMute: Boolean)
     fun onTransmitAudio(sendAudio: Boolean, recvAudio: Boolean)
+
     @ExperimentalTime
     fun onBatteryLogInterval(batterLogInterval: Duration)
 }
@@ -42,6 +49,7 @@ interface CtrlCallback {
 class CtrlCommunicator(// cant get this to work without nullable
     private var callbacks: CtrlCallback, private val deviceId: String, context: Context
 ) {
+    private var discovery: Boolean = false
     private var socket: Socket? = null
 
     private var host: String = ""
@@ -52,47 +60,66 @@ class CtrlCommunicator(// cant get this to work without nullable
     private var autoHost: String = ""
     private var autoPort: Int = 0
 
-    private val discoveryListener = object : NsdManager.DiscoveryListener {
+    private val resolveListener: NsdManager.ResolveListener =
+        object : NsdManager.ResolveListener {
+            override fun onResolveFailed(serviceInfo: NsdServiceInfo?, errorCode: Int) {
 
-        override fun onServiceFound(service: NsdServiceInfo) {
-            if (service.serviceType != "_geckoaudio._tcp") {
+            }
+
+            override fun onServiceResolved(serviceInfo: NsdServiceInfo?) {
+                autoHost = serviceInfo?.host?.hostName ?: ""
+                autoPort = serviceInfo?.port ?: 0
+                if (autoPort > 0 && autoHost.length > 0) {
+                    callbacks.onServerDiscovered(autoHost, autoPort)
+                    nsdManager?.stopServiceDiscovery(discoveryListener)
+                    discovery = false
+                }
+            }
+
+        }
+
+    private val discoveryListener: NsdManager.DiscoveryListener =
+        object : NsdManager.DiscoveryListener {
+
+            override fun onServiceFound(service: NsdServiceInfo) {
+                if (service.serviceType != "_geckoaudio._tcp.") {
+                    return
+                }
+
+                nsdManager?.resolveService(service, resolveListener)
+            }
+
+            override fun onStopDiscoveryFailed(p0: String?, p1: Int) {
+                TODO("Not yet implemented")
+            }
+
+            override fun onStartDiscoveryFailed(p0: String?, p1: Int) {
+                TODO("Not yet implemented")
+            }
+
+            override fun onDiscoveryStarted(p0: String?) {
                 return
             }
 
-            nsdManager?.stopServiceDiscovery(this)
+            override fun onDiscoveryStopped(p0: String?) {
+                return
+            }
 
-            autoHost = service.host.hostName
-            autoPort = service.port
-            callbacks.onServerDiscovered(autoHost, autoPort)
+            override fun onServiceLost(p0: NsdServiceInfo?) {
+                TODO("Not yet implemented")
+            }
         }
-
-        override fun onStopDiscoveryFailed(p0: String?, p1: Int) {
-            TODO("Not yet implemented")
-        }
-
-        override fun onStartDiscoveryFailed(p0: String?, p1: Int) {
-            TODO("Not yet implemented")
-        }
-
-        override fun onDiscoveryStarted(p0: String?) {
-            return
-        }
-
-        override fun onDiscoveryStopped(p0: String?) {
-            return
-        }
-
-        override fun onServiceLost(p0: NsdServiceInfo?) {
-            TODO("Not yet implemented")
-        }
-    }
 
     init {
         this.nsdManager = context.getSystemService(Context.NSD_SERVICE) as NsdManager
     }
 
-    fun sendBatteryLevel(level: Double, isChargin: Boolean) {
-        TODO("Not yet implemented")
+    fun sendBatteryLevel(level: Double, isCharging: Boolean) {
+        val command = JSONObject()
+        command.put("type", "BatteryLevel")
+        command.put("level", level)
+        command.put("is_charging", isCharging)
+        socket?.getOutputStream()?.write(command.toString().toByteArray())
     }
 
     fun sendLogMsg(message: String) {
@@ -100,14 +127,19 @@ class CtrlCommunicator(// cant get this to work without nullable
     }
 
     fun sendDisplayName(displayName: String) {
-        val command = JSONObject();
+        val command = JSONObject()
         command.put("type", "DisplayName")
         command.put("display_name", displayName)
 
         socket?.getOutputStream()?.write(command.toString().toByteArray())
     }
 
-    fun sendAudioStream(recvAudioPort: Int, recvRepairPort: Int, sendAudioPort: Int, sendRepairPort: Int) {
+    fun sendAudioStream(
+        recvAudioPort: Int,
+        recvRepairPort: Int,
+        sendAudioPort: Int,
+        sendRepairPort: Int
+    ) {
         TODO("Not yet implemented")
     }
 
@@ -120,7 +152,20 @@ class CtrlCommunicator(// cant get this to work without nullable
     }
 
     fun searchServer() {
-        nsdManager?.discoverServices("_geckoaudio._tcp", NsdManager.PROTOCOL_DNS_SD, discoveryListener)
+        if (!discovery)
+            nsdManager?.discoverServices(
+                "_geckoaudio._tcp",
+                NsdManager.PROTOCOL_DNS_SD,
+                discoveryListener
+            )
+        discovery = true
+    }
+
+    fun stopConnection() {
+        if (discovery)
+            nsdManager?.stopServiceDiscovery(discoveryListener)
+        socket?.close()
+
     }
 
     fun connect(host: String, port: Int) {
@@ -128,7 +173,7 @@ class CtrlCommunicator(// cant get this to work without nullable
 
         val command = JSONObject();
         command.put("type", "Hello")
-        command.put("client_name",  deviceId)
+        command.put("client_name", deviceId)
 
         socket?.getOutputStream()?.write(command.toString().toByteArray())
 

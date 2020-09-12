@@ -46,6 +46,7 @@
             android:digits="@string/ip_characters"
             android:ems="10"
             android:hint="@string/server_ip"
+            android:text="192.168.178.42"
             android:inputType="number"
             app:layout_constraintEnd_toStartOf="@+id/guideEnd"
             app:layout_constraintStart_toStartOf="@+id/guideStart"
@@ -150,6 +151,7 @@
             android:autofillHints=""
             android:ems="10"
             android:inputType="number"
+            android:text="10001"
             app:layout_constraintEnd_toStartOf="@+id/guide_mid"
             app:layout_constraintStart_toStartOf="@+id/guideStart"
             app:layout_constraintTop_toBottomOf="@+id/portLabelAudioSend" />
@@ -162,6 +164,7 @@
             android:autofillHints=""
             android:ems="10"
             android:inputType="number"
+            android:text="10002"
             app:layout_constraintEnd_toStartOf="@+id/guideEnd"
             app:layout_constraintStart_toStartOf="@+id/guide_mid"
             app:layout_constraintTop_toBottomOf="@+id/portLabelErrorSend" />

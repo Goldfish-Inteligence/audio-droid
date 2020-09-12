@@ -43,7 +43,6 @@
             android:layout_width="32dp"
             android:layout_height="32dp"
             android:background="@drawable/ic_toggle_mic_bg"
-            android:enabled="false"
             android:checked="true"
             app:layout_constraintBottom_toBottomOf="@+id/connectionInfo"
             app:layout_constraintEnd_toStartOf="@+id/guideEnd" />
@@ -55,7 +54,6 @@
             android:layout_width="32dp"
             android:layout_height="32dp"
             android:background="@drawable/ic_toggle_receive_bg"
-            android:enabled="false"
             app:layout_constraintBottom_toBottomOf="@+id/connectionInfo"
             app:layout_constraintEnd_toStartOf="@+id/toggleSendButton" />
 
@@ -66,7 +64,6 @@
             android:layout_width="32dp"
             android:layout_height="32dp"
             android:background="@drawable/ic_toggle_send_bg"
-            android:enabled="false"
             app:layout_constraintBottom_toBottomOf="@+id/connectionInfo"
             app:layout_constraintEnd_toStartOf="@+id/toggleMicButton" />
 
