@@ -9,6 +9,8 @@ class AudioStreaming {
 
     var muted = false
     var deafed = false
+    var sending = false
+    var receiving = false
 
     /**
      * Start roc sender, is already in separate thread
@@ -39,12 +41,13 @@ class AudioStreaming {
                 )
 
                 val samples = FloatArray(BUFFER_SIZE)
-                while (!Thread.currentThread().isInterrupted) {
-                    if (muted)
-                        samples.indices.forEach { i -> samples[i] = 0f }
-                    else
+                val silence = FloatArray(BUFFER_SIZE) { 0f }
+                while (!Thread.currentThread().isInterrupted && sending) {
                     audioRecord.read(samples, 0, samples.size, AudioRecord.READ_BLOCKING)
-                    sender.write(samples)
+                    if (muted)
+                        sender.write(silence)
+                    else
+                        sender.write(samples)
                 }
             }
         }
@@ -80,12 +83,11 @@ class AudioStreaming {
                 )
 
                 val samples = FloatArray(BUFFER_SIZE)
-                while (!Thread.currentThread().isInterrupted) {
-                    if (deafed)
-                        samples.indices.forEach { i -> samples[i] = 0f }
-                    else
+                while (!Thread.currentThread().isInterrupted && receiving) {
+                    if (!deafed) {
                         receiver.read(samples)
-                    audioTrack.write(samples, 0, samples.size, AudioTrack.WRITE_BLOCKING)
+                        audioTrack.write(samples, 0, samples.size, AudioTrack.WRITE_BLOCKING)
+                    }
                 }
             }
         }

@@ -43,16 +43,16 @@ class RocStreamService : Service(), CtrlCallback {
     private val binder: IBinder = RocStreamBinder()
 
     // update changes Stream - garbage collection ok (all 3)
-    private lateinit var streamData: StreamData
+    lateinit var streamData: StreamData
     private lateinit var recvThread: Thread
     private lateinit var sendThread: Thread
     private var batteryLogThread: Thread? = null
     private lateinit var notificationManagerCompat: NotificationManagerCompat
 
     // shouldn't change (only if service restarts)
-    private lateinit var ctrlCommunicator: CtrlCommunicator
+    lateinit var ctrlCommunicator: CtrlCommunicator
 
-    private val audioStreaming = AudioStreaming()
+    val audioStreaming = AudioStreaming()
 
     private var initialized = false
     private var controlSearching = false
@@ -60,11 +60,11 @@ class RocStreamService : Service(), CtrlCallback {
     // ---------- Android callbacks ----------
 
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    fun onServiceStart(streamData: StreamData): StreamData {
         if (!initialized) {
             initialized = true
             Log.i(CHANNEL_ID, "---------------- service Started ----------------")
-            streamData = intent!!.extras!!.get(STREAM_DATA_KEY) as StreamData
+            this.streamData = streamData
 
             sendThread = Thread()
             recvThread = Thread()
@@ -85,14 +85,13 @@ class RocStreamService : Service(), CtrlCallback {
                     putString(UID, userID)
                     commit()
                 }
-            if (intent.getBooleanExtra(ACTION_CONNECT, false)) {
-                ctrlCommunicator = CtrlCommunicator(this, userID, this)
-                ctrlCommunicator.searchServer()
-            }
-
-
+            ctrlCommunicator = CtrlCommunicator(this, userID, this)
         }
+        return this.streamData
+    }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
         return START_STICKY
     }
 
@@ -247,6 +246,16 @@ class RocStreamService : Service(), CtrlCallback {
         }
     }
 
+    fun getTransmissionState(): TransmissionData {
+        return TransmissionData(
+            sendThread.isAlive,
+            recvThread.isAlive,
+            audioStreaming.muted,
+            audioStreaming.deafed,
+            ctrlCommunicator.connected()
+        )
+    }
+
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val serviceChannel = NotificationChannel(
@@ -357,39 +366,40 @@ class RocStreamService : Service(), CtrlCallback {
         )
     }
 
+
     override fun onTransmitAudio(sendAudio: Boolean, recvAudio: Boolean) {
         Log.i(CHANNEL_ID, "send: ${sendThread.isAlive}, recv:${recvThread.isAlive}")
         if (!recvAudio && recvThread.isAlive) {
-            recvThread.interrupt()
+            audioStreaming.receiving = false
             notificationManagerCompat.cancel(RECEIVE_NOTIFICATION_ID)
         }
         if (recvAudio && !recvThread.isAlive) {
             startForeground(RECEIVE_NOTIFICATION_ID, createRecvNotification(audioStreaming.deafed))
-            recvThread = Thread {
-                Runnable {
-                    audioStreaming.startReceiver(
-                        streamData.ip,
-                        streamData.portAudioRecv,
-                        streamData.portErrorRecv
-                    )
-                }
-            }.apply { start() }
+            audioStreaming.receiving = true
+            recvThread = thread(start = true) {
+                audioStreaming.startReceiver(
+                    streamData.ip,
+                    streamData.portAudioRecv,
+                    streamData.portErrorRecv
+                )
+            }
         }
         if (!sendAudio && sendThread.isAlive) {
-            sendThread.interrupt()
+            audioStreaming.sending = false
             notificationManagerCompat.cancel(SEND_NOTIFICATION_ID)
         }
         if (sendAudio && !sendThread.isAlive) {
-            startForeground(SEND_NOTIFICATION_ID, createSendNotification(audioStreaming.muted))
-            sendThread = Thread {
-                Runnable {
-                    audioStreaming.startSender(
-                        streamData.ip,
-                        streamData.portAudioSend,
-                        streamData.portErrorSend
-                    )
-                }
-            }.apply { start() }
+            createSendNotification(audioStreaming.muted)?.also {
+                notificationManagerCompat.notify(SEND_NOTIFICATION_ID, it)
+            }
+            audioStreaming.sending = true
+            sendThread = thread(start = true) {
+                audioStreaming.startSender(
+                    streamData.ip,
+                    streamData.portAudioSend,
+                    streamData.portErrorSend
+                )
+            }
         }
     }
 
@@ -415,5 +425,9 @@ class RocStreamService : Service(), CtrlCallback {
         }
     }
 
+    fun onSendAudio(send: Boolean) = onTransmitAudio(send, recvThread.isAlive)
+    fun onRecvAudio(recv: Boolean) = onTransmitAudio(sendThread.isAlive, recv)
+    fun onMuteMic(muted: Boolean) = onMuteAudio(muted, audioStreaming.deafed)
+    fun onDeafed(deafed: Boolean) = onMuteAudio(audioStreaming.muted, deafed)
 
 }

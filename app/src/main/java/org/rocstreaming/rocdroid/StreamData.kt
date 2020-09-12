@@ -23,3 +23,11 @@ data class StreamData(
     fun recvChanged(other: StreamData): Boolean =
         other.ip != ip || other.portAudioRecv != portAudioRecv || other.portErrorRecv != portErrorRecv
 }
+
+data class TransmissionData(
+    val send: Boolean,
+    val recv: Boolean,
+    val muted: Boolean,
+    val deafed: Boolean,
+    val contolled: Boolean
+) : Serializable
