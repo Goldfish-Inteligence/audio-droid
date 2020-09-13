@@ -115,7 +115,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="@string/receive"
+            android:text="@string/recv"
             android:textSize="16sp"
             app:layout_constraintEnd_toStartOf="@+id/guideEnd"
             app:layout_constraintStart_toStartOf="@+id/guideStart"
