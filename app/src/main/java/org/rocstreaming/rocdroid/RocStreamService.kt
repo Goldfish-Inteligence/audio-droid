@@ -55,7 +55,7 @@ class RocStreamService : Service(), CtrlCallback {
             START -> onServiceStart(true)
             START_NO_SEND -> onServiceStart(false)
             MUTE -> onMuteAudio(extras?.get(MUTE) == true, audioStreaming.deafed, true)
-            DEAF -> onMuteAudio(audioStreaming.deafed, extras?.get(DEAF) == true, true)
+            DEAF -> onMuteAudio(audioStreaming.muted, extras?.get(DEAF) == true, true)
             SEND -> onTransmitAudio(extras?.get(SEND) == true, audioStreaming.receiving, true)
             RECV -> onTransmitAudio(audioStreaming.sending, extras?.get(RECV) == true, true)
             SETTINGS -> onAudioStream(extras?.get(SETTINGS) as StreamData, true)
@@ -132,9 +132,15 @@ class RocStreamService : Service(), CtrlCallback {
         else if (controlSearching) getString(R.string.connecting)
         else getString(R.string.not_connected)
 
-        val intent = Intent(applicationContext, NotificationListener::class.java).apply { action = STOP }
+        val intent =
+            Intent(applicationContext, NotificationListener::class.java).apply { action = STOP }
         val notificationDismissedPendingIntent =
-            PendingIntent.getBroadcast(applicationContext, STOP.hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT)
+            PendingIntent.getBroadcast(
+                applicationContext,
+                STOP.hashCode(),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT
+            )
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
@@ -155,10 +161,10 @@ class RocStreamService : Service(), CtrlCallback {
                     .setMediaSession(mMediaSession?.sessionToken)
             )
             .setDeleteIntent(notificationDismissedPendingIntent)
-            .addAction(icMute, getString(R.string.mute), getIntent(MUTE))
-            .addAction(icDeaf, getString(R.string.deaf), getIntent(DEAF))
-            .addAction(icSend, getString(R.string.send), getIntent(SEND))
-            .addAction(icRecv, getString(R.string.recv), getIntent(RECV))
+            .addAction(icMute, getString(R.string.mute), getIntent(MUTE, !audioStreaming.muted))
+            .addAction(icDeaf, getString(R.string.deaf), getIntent(DEAF, !audioStreaming.deafed))
+            .addAction(icSend, getString(R.string.send), getIntent(SEND, !audioStreaming.sending))
+            .addAction(icRecv, getString(R.string.recv), getIntent(RECV, !audioStreaming.receiving))
         startForeground(27, notification.build())
     }
 
@@ -181,14 +187,36 @@ class RocStreamService : Service(), CtrlCallback {
 
     private fun getContentIntent(): PendingIntent? {
         val notificationIntent = Intent(applicationContext, MainActivity::class.java)
-        return PendingIntent.getActivity(applicationContext, MainActivity::class.hashCode(), notificationIntent, 0)
+        return PendingIntent.getActivity(
+            applicationContext,
+            MainActivity::class.hashCode(),
+            notificationIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT
+        )
     }
 
 
-    private fun getIntent(action: String): PendingIntent {
-        val intent = Intent(applicationContext, NotificationListener::class.java)
+    private fun getIntent(action: String, bool: Boolean): PendingIntent {
+        val intent = Intent(applicationContext, RocStreamService::class.java)
         intent.action = action
-        return PendingIntent.getBroadcast(applicationContext, action.hashCode(), intent, 0)
+        intent.putExtra(action, bool)
+        return PendingIntent.getService(
+            applicationContext,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT
+        )
+    }
+
+    private fun getIntent(action: String): PendingIntent {
+        val intent = Intent(applicationContext, RocStreamService::class.java)
+        intent.action = action
+        return PendingIntent.getService(
+            applicationContext,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT
+        )
     }
 
     private fun getTransmissionState(): TransmissionData {
