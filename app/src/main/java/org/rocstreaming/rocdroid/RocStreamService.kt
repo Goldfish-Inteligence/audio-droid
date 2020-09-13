@@ -1,9 +1,7 @@
 package org.rocstreaming.rocdroid
 
 import android.app.*
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
+import android.content.*
 import android.os.BatteryManager
 import android.os.Binder
 import android.os.Build
@@ -15,21 +13,30 @@ import androidx.core.app.NotificationManagerCompat
 import java.io.Serializable
 import java.util.*
 import kotlin.concurrent.thread
+import kotlin.reflect.KFunction3
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 
+interface uiCallback {
+    fun onUiUpdate(
+        transmissionData: TransmissionData? = null,
+        streamData: StreamData? = null,
+        controlData: ControlData? = null
+    )
+}
 
 class RocStreamService : Service(), CtrlCallback {
 
 
+    private var controlData: ControlData? = null
     private var mMediaSession: MediaSessionCompat? = null
-    private var displayName: String? = null
+    private val binder = RocStreamBinder()
 
     // Requesting permission to RECORD_AUDIO
     private var permissionToRecordAccepted = false
 
     // update changes Stream - garbage collection ok (all 3)
-    private var streamData: StreamData = StreamData("192.168.178.43", 0, 0, 10001, 10002)
+    private var streamData: StreamData = StreamData("192.168.178.26", 0, 0, 10001, 10002)
     private lateinit var recvThread: Thread
     private lateinit var sendThread: Thread
     private var batteryLogThread: Thread? = null
@@ -37,6 +44,11 @@ class RocStreamService : Service(), CtrlCallback {
 
     // shouldn't change (only if service restarts)
     var ctrlCommunicator: CtrlCommunicator? = null
+    var uiCallback: uiCallback? = null
+        set(value) {
+            field = value
+            uiCallback?.onUiUpdate(getTransmissionState(), streamData, controlData)
+        }
 
     private val audioStreaming = AudioStreaming()
 
@@ -46,7 +58,11 @@ class RocStreamService : Service(), CtrlCallback {
     // ---------- Android callbacks ----------
 
 
-    override fun onBind(intent: Intent?): IBinder? = null
+    inner class RocStreamBinder : Binder() {
+        val rocStreamService = this@RocStreamService
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = binder
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
@@ -106,16 +122,7 @@ class RocStreamService : Service(), CtrlCallback {
                 }
             ctrlCommunicator = CtrlCommunicator(this, userID, this)
         }
-        Intent(applicationContext, MainActivity.UIBroadcastReceiver::class.java).apply {
-            action = SETTINGS
-            putExtra(SETTINGS, streamData)
-            sendBroadcast(this)
-        }
-        Intent(applicationContext, MainActivity.UIBroadcastReceiver::class.java).apply {
-            action = TRANSMISSION
-            putExtra(TRANSMISSION, getTransmissionState())
-            sendBroadcast(this)
-        }
+        uiCallback?.onUiUpdate(getTransmissionState(), streamData, controlData)
     }
 
     private fun setupNotification() {
@@ -144,7 +151,7 @@ class RocStreamService : Service(), CtrlCallback {
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
-            .setContentText(displayName)
+            .setContentText(controlData?.serverName ?: "")
             .setSmallIcon(R.drawable.ic_mic_on_24)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setPriority(NotificationCompat.PRIORITY_MAX)
@@ -221,40 +228,12 @@ class RocStreamService : Service(), CtrlCallback {
 
     private fun getTransmissionState(): TransmissionData {
         return TransmissionData(
-            sendThread.isAlive,
-            recvThread.isAlive,
+            audioStreaming.sending,
+            audioStreaming.receiving,
             audioStreaming.muted,
             audioStreaming.deafed,
             ctrlCommunicator?.connected() == true
         )
-    }
-
-    private fun uiUpdate(
-        transmissionData: TransmissionData? = null,
-        streamData: StreamData? = null,
-        controlData: ControlData? = null
-    ) {
-        transmissionData?.let {
-            Intent(applicationContext, MainActivity::class.java).apply {
-                action = TRANSMISSION
-                putExtra(TRANSMISSION, transmissionData)
-                sendBroadcast(this)
-            }
-        }
-        streamData?.let {
-            Intent(applicationContext, MainActivity::class.java).apply {
-                action = SETTINGS
-                putExtra(SETTINGS, streamData)
-                sendBroadcast(this)
-            }
-        }
-        controlData?.let {
-            Intent(applicationContext, MainActivity::class.java).apply {
-                action = CONTROL
-                putExtra(CONTROL, controlData)
-                sendBroadcast(this)
-            }
-        }
     }
 
     // Handles
@@ -274,7 +253,7 @@ class RocStreamService : Service(), CtrlCallback {
             onTransmitAudio(false, audioStreaming.receiving)
             onTransmitAudio(true, audioStreaming.receiving)
         }
-        uiUpdate(streamData = streamData)
+        uiCallback?.onUiUpdate(streamData = streamData)
         if (controlFeedback)
             ctrlCommunicator?.sendAudioStream(
                 streamData.portAudioRecv,
@@ -292,7 +271,7 @@ class RocStreamService : Service(), CtrlCallback {
         audioStreaming.muted = sendMute
         audioStreaming.deafed = recvMute
         setupNotification()
-        uiUpdate(getTransmissionState())
+        uiCallback?.onUiUpdate(getTransmissionState())
         if (controlFeedback)
             ctrlCommunicator?.sendMuteAudio(sendMute, recvMute)
     }
@@ -329,7 +308,7 @@ class RocStreamService : Service(), CtrlCallback {
             }
         }
         setupNotification()
-        uiUpdate(getTransmissionState())
+        uiCallback?.onUiUpdate(getTransmissionState())
         if (controlFeedback)
             ctrlCommunicator?.sendTransmitAudio(sendAudio, recvAudio)
     }
@@ -343,22 +322,12 @@ class RocStreamService : Service(), CtrlCallback {
         controlSearching = false
         setupNotification()
 
-        Intent(INTENT_SEND_UPDATE).let {
-            it.action = UPDATE_DISPLAY_NAME
-            it.putExtra(UPDATE_IS_CONNECTED, true)
-            sendBroadcast(it)
-        }
-
     }
 
     override fun onDisplayName(displayName: String) {
-        this.displayName = displayName
+        this.controlData = ControlData(true, displayName, "")
         setupNotification()
-        Intent(INTENT_SEND_UPDATE).let {
-            it.action = UPDATE_DISPLAY_NAME
-            it.putExtra(UPDATE_CONNECTION, displayName)
-            sendBroadcast(it)
-        }
+        uiCallback?.onUiUpdate(controlData = controlData)
     }
 
     override fun onAudioStream(

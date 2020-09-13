@@ -1,12 +1,10 @@
 package org.rocstreaming.rocdroid
 
 import android.Manifest
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
+import android.content.*
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.IBinder
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
@@ -16,12 +14,30 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), uiCallback {
 
     // Requesting permission to RECORD_AUDIO
     private var permissionToRecordAccepted = false
+
     private var permissions: Array<String> = arrayOf(Manifest.permission.RECORD_AUDIO)
-    private var receiver = UIBroadcastReceiver()
+    private var isBound = false
+
+
+    private var mService: RocStreamService? = null
+    private var connection = object : ServiceConnection {
+        override fun onServiceDisconnected(name: ComponentName?) {
+            isBound = false
+
+        }
+
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            val binder = service as RocStreamService.RocStreamBinder
+            mService = binder.rocStreamService
+            isBound = true
+            mService?.uiCallback = this@MainActivity
+        }
+    }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,7 +51,6 @@ class MainActivity : AppCompatActivity() {
         titlebar.findViewById<ToggleButton>(R.id.toggleMicButton)
             .setOnCheckedChangeListener { _, isChecked -> toggleMic(isChecked) }
 
-        initBroadcastReceiver()
 
         ActivityCompat.requestPermissions(this, permissions, REQUEST_RECORD_AUDIO_PERMISSION)
     }
@@ -47,16 +62,16 @@ class MainActivity : AppCompatActivity() {
             this.action = action
             startForegroundService(this)
         }
+        Intent(this, RocStreamService::class.java).apply {
+            bindService(this, connection, Context.BIND_AUTO_CREATE)
+        }
     }
 
-    override fun onResume() {
-        super.onResume()
-        initBroadcastReceiver()
-    }
-
-    override fun onPause() {
-        super.onPause()
-        unregisterReceiver(receiver)
+    override fun onStop() {
+        super.onStop()
+        if (isBound)
+            mService?.uiCallback = null
+        unbindService(connection)
     }
 
     override fun onRequestPermissionsResult(
@@ -73,57 +88,33 @@ class MainActivity : AppCompatActivity() {
         if (!permissionToRecordAccepted) finish()
     }
 
-    inner class UIBroadcastReceiver : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            when (intent?.action) {
-                SETTINGS -> (intent.getSerializableExtra(SETTINGS) as StreamData?)?.apply {
-                    updateConnections(streamData = this)
-                }
-                TRANSMISSION -> (intent.getSerializableExtra(TRANSMISSION) as TransmissionData?)?.apply {
-                    updateConnections(data = this)
-                }
-                CONTROL -> (intent.getSerializableExtra(CONTROL) as ControlData?)?.apply {
-                    onDisplayName(this)
-                }
-            }
-        }
-    }
-
-    private fun initBroadcastReceiver() {
-        val filter = IntentFilter().apply {
-            addAction(TRANSMISSION)
-            addAction(CONTROL)
-            addAction(SETTINGS)
-        }
-        registerReceiver(receiver, filter)
-    }
-
     // --------- UI adaptors ------------
 
-    private fun updateConnections(data: TransmissionData? = null, streamData: StreamData? = null) {
-        if (data != null) {
-            val titlebar = findViewById<View>(R.id.titlebar)
-            titlebar.findViewById<ToggleButton>(R.id.toggleRecvButton).isChecked = data.recv
-            titlebar.findViewById<ToggleButton>(R.id.toggleSendButton).isChecked = data.send
-            titlebar.findViewById<ToggleButton>(R.id.toggleMicButton).isChecked = !data.muted
+    private fun updateTransmissions(transmission: TransmissionData) {
+        val titlebar = findViewById<View>(R.id.titlebar)
+        titlebar.findViewById<ToggleButton>(R.id.toggleRecvButton).isChecked = transmission.recv
+        titlebar.findViewById<ToggleButton>(R.id.toggleSendButton).isChecked = transmission.send
+        titlebar.findViewById<ToggleButton>(R.id.toggleMicButton).isChecked = !transmission.muted
 
-            val control = findViewById<View>(R.id.control)
-            control.findViewById<Button>(R.id.connectControl).setText(
-                if (data.contolled) R.string.disconnect_from_control_server
-                else R.string.connect_to_control_server
-            )
-        }
-        if (streamData != null) {
-            val stream = findViewById<View>(R.id.stream)
-            stream.findViewById<EditText>(R.id.ipEditText).setText(streamData.ip)
-            stream.findViewById<EditText>(R.id.portErrorEditTextSend)
-                .setText(streamData.portErrorSend)
-            stream.findViewById<EditText>(R.id.portAudioEditTextSend)
-                .setText(streamData.portAudioSend)
-            stream.findViewById<EditText>(R.id.portErrorEditText).setText(streamData.portErrorRecv)
-            stream.findViewById<EditText>(R.id.portAudioEditText).setText(streamData.portAudioRecv)
+        val control = findViewById<View>(R.id.control)
+        control.findViewById<Button>(R.id.connectControl).setText(
+            if (transmission.contolled) R.string.disconnect_from_control_server
+            else R.string.connect_to_control_server
+        )
+    }
 
-        }
+    private fun updateConnections(streamData: StreamData) {
+        val stream = findViewById<View>(R.id.stream)
+        stream.findViewById<EditText>(R.id.ipEditText).setText(streamData.ip)
+        stream.findViewById<EditText>(R.id.portErrorEditTextSend)
+            .setText("${streamData.portErrorSend}")
+        stream.findViewById<EditText>(R.id.portAudioEditTextSend)
+            .setText("${streamData.portAudioSend}")
+        stream.findViewById<EditText>(R.id.portErrorEditText)
+            .setText("${streamData.portErrorRecv}")
+        stream.findViewById<EditText>(R.id.portAudioEditText)
+            .setText("${streamData.portAudioRecv}")
+
     }
 
     private fun onDisplayName(control: ControlData) {
@@ -220,6 +211,17 @@ class MainActivity : AppCompatActivity() {
         }
 
     }
+
+    override fun onUiUpdate(
+        transmissionData: TransmissionData?,
+        streamData: StreamData?,
+        controlData: ControlData?
+    ) {
+        transmissionData?.let { updateTransmissions(transmissionData) }
+        streamData?.let { updateConnections(streamData) }
+        controlData?.let { onDisplayName(controlData) }
+    }
+
 }
 
 

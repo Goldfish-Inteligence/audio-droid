@@ -52,7 +52,7 @@ interface CtrlCallback {
 class CtrlCommunicator(// cant get this to work without nullable
     private var callbacks: CtrlCallback, private val deviceId: String, context: Context
 ) {
-    private lateinit var socketThread: Thread
+    private var socketThread: Thread? = null
     private var discovery: Boolean = false
     private var socket: Socket? = null
 
@@ -191,7 +191,8 @@ class CtrlCommunicator(// cant get this to work without nullable
         if (discovery)
             nsdManager?.stopServiceDiscovery(discoveryListener)
         socket?.close()
-
+        socket = null
+        socketThread = null
     }
 
     fun connected(): Boolean {
