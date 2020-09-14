@@ -96,11 +96,6 @@ class MainActivity : AppCompatActivity(), uiCallback {
         titlebar.findViewById<ToggleButton>(R.id.toggleSendButton).isChecked = transmission.send
         titlebar.findViewById<ToggleButton>(R.id.toggleMicButton).isChecked = !transmission.muted
 
-        val control = findViewById<View>(R.id.control)
-        control.findViewById<Button>(R.id.connectControl).setText(
-            if (transmission.contolled) R.string.disconnect_from_control_server
-            else R.string.connect_to_control_server
-        )
     }
 
     private fun updateConnections(streamData: StreamData) {
@@ -122,13 +117,22 @@ class MainActivity : AppCompatActivity(), uiCallback {
         titlebar.findViewById<TextView>(R.id.connectionName).text = control.serverName
 
         titlebar.findViewById<TextView>(R.id.connectionInfo)
-            .setText(if (control.contolled) R.string.connected else R.string.not_connected)
+            .setText(
+                when (control.state) {
+                    ConnectionState.CONNECTED -> R.string.connected
+                    ConnectionState.CONNECTING -> R.string.connecting
+                    else -> R.string.not_connected
+                }
+            )
 
         findViewById<View>(R.id.control)
             .findViewById<Button>(R.id.connectControl)
             .setText(
-                if (control.contolled) R.string.disconnect_from_control_server
-                else R.string.connect_to_control_server
+                when (control.state) {
+                    ConnectionState.CONNECTED -> R.string.disconnect_from_control_server
+                    ConnectionState.CONNECTING -> R.string.connecting
+                    else -> R.string.connect_to_control_server
+                }
             )
     }
 
@@ -167,13 +171,13 @@ class MainActivity : AppCompatActivity(), uiCallback {
 
     fun toggleControl(view: View) {
         val button = view as Button
-        if (button.text == resources.getString(R.string.connect_to_control_server)) {
+        if (button.text == getString(R.string.connect_to_control_server)) {
             Intent(this, RocStreamService::class.java).apply {
                 this.action = CONNECT
                 startForegroundService(this)
             }
             button.setText(R.string.disconnect_from_control_server)
-        } else {
+        } else if(button.text == getString(R.string.disconnect_from_control_server)) {
             Intent(this, RocStreamService::class.java).apply {
                 this.action = DISCONNECT
                 startForegroundService(this)
@@ -183,7 +187,7 @@ class MainActivity : AppCompatActivity(), uiCallback {
         }
     }
 
-    fun saveSettings(view: View) {
+    fun saveSettings(@Suppress("UNUSED_PARAMETER") view: View) {
         val stream = findViewById<View>(R.id.stream)
         val address = stream.findViewById<EditText>(R.id.ipEditText).text.toString()
         val audioRecvPort =

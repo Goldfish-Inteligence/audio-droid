@@ -29,6 +29,14 @@ interface CtrlCallback {
     fun onBatteryLogInterval(batterLogInterval: Duration)
 }
 
+enum class ConnectionState {
+    UNCONNECTED,
+    CONNECTING,
+    CONNECTED,
+    RETRYING,
+    FATAL
+}
+
 /**
  * Handles communication with gecko_audio_ctrl
  * Provide callback interface in constructor. If a the a callback is called that corresponds to a
@@ -53,7 +61,8 @@ class CtrlCommunicator(// cant get this to work without nullable
     private var callbacks: CtrlCallback, private val deviceId: String, context: Context
 ) {
     private var socketThread: Thread? = null
-    private var discovery: Boolean = false
+    var state: ConnectionState = ConnectionState.UNCONNECTED
+        private set
     private var socket: Socket? = null
 
     private var host: String = ""
@@ -69,7 +78,7 @@ class CtrlCommunicator(// cant get this to work without nullable
     private val resolveListener: NsdManager.ResolveListener =
         object : NsdManager.ResolveListener {
             override fun onResolveFailed(serviceInfo: NsdServiceInfo?, errorCode: Int) {
-
+                state = ConnectionState.UNCONNECTED
             }
 
             override fun onServiceResolved(serviceInfo: NsdServiceInfo?) {
@@ -77,8 +86,8 @@ class CtrlCommunicator(// cant get this to work without nullable
                 autoPort = serviceInfo?.port ?: 0
                 if (autoPort != 0 && autoHost.isNotEmpty()) {
                     callbacks.onServerDiscovered(autoHost, autoPort)
+                    state = ConnectionState.CONNECTED
                     nsdManager?.stopServiceDiscovery(discoveryListener)
-                    discovery = false
                 }
             }
 
@@ -178,17 +187,18 @@ class CtrlCommunicator(// cant get this to work without nullable
     }
 
     fun searchServer() {
-        if (!discovery)
+        if (state in arrayOf(ConnectionState.UNCONNECTED, ConnectionState.RETRYING)) {
             nsdManager?.discoverServices(
                 "_geckoaudio._tcp",
                 NsdManager.PROTOCOL_DNS_SD,
                 discoveryListener
             )
-        discovery = true
+            state = ConnectionState.CONNECTING
+        }
     }
 
     fun stopConnection() {
-        if (discovery)
+        if (state == ConnectionState.CONNECTING)
             nsdManager?.stopServiceDiscovery(discoveryListener)
         socket?.close()
         socket = null
@@ -212,6 +222,7 @@ class CtrlCommunicator(// cant get this to work without nullable
         socketThread = thread(start = true) {
             while (socket?.isConnected == true)
                 output?.write(commands.take().toString().toByteArray())
+            state = ConnectionState.UNCONNECTED
         }
     }
 }

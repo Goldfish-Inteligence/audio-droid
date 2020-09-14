@@ -28,12 +28,11 @@ data class TransmissionData(
     val send: Boolean,
     val recv: Boolean,
     val muted: Boolean,
-    val deafed: Boolean,
-    val contolled: Boolean
+    val deafed: Boolean
 ) : Serializable
 
 data class ControlData(
-    val contolled: Boolean,
+    val state: ConnectionState,
     val serverName: String,
     val ClientName: String
 ) : Serializable

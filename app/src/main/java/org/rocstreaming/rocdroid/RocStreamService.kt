@@ -53,7 +53,6 @@ class RocStreamService : Service(), CtrlCallback {
     private val audioStreaming = AudioStreaming()
 
     private var initialized = false
-    private var controlSearching = false
 
     // ---------- Android callbacks ----------
 
@@ -135,9 +134,12 @@ class RocStreamService : Service(), CtrlCallback {
         val icRecv =
             if (audioStreaming.receiving) R.drawable.ic_receiving_24 else R.drawable.ic_not_receiving_24
 
-        val title = if (ctrlCommunicator?.connected() == true) getString(R.string.connected)
-        else if (controlSearching) getString(R.string.connecting)
-        else getString(R.string.not_connected)
+        val title =
+            when (ctrlCommunicator?.state) {
+                ConnectionState.CONNECTED -> getString(R.string.connected)
+                ConnectionState.CONNECTING -> getString(R.string.connecting)
+                else -> getString(R.string.not_connected)
+            }
 
         val intent =
             Intent(applicationContext, NotificationListener::class.java).apply { action = STOP }
@@ -231,8 +233,7 @@ class RocStreamService : Service(), CtrlCallback {
             audioStreaming.sending,
             audioStreaming.receiving,
             audioStreaming.muted,
-            audioStreaming.deafed,
-            ctrlCommunicator?.connected() == true
+            audioStreaming.deafed
         )
     }
 
@@ -318,14 +319,21 @@ class RocStreamService : Service(), CtrlCallback {
     override fun onServerDiscovered(host: String, port: Int) {
         streamData = streamData.modified(host)
         ctrlCommunicator?.connect(host, port)
-
-        controlSearching = false
+        controlData = ControlData(
+            ctrlCommunicator?.state ?: ConnectionState.UNCONNECTED,
+            controlData?.serverName ?: "",
+            controlData?.ClientName ?: ""
+        )
         setupNotification()
 
     }
 
     override fun onDisplayName(displayName: String) {
-        this.controlData = ControlData(true, displayName, "")
+        this.controlData = ControlData(
+            ctrlCommunicator?.state ?: ConnectionState.UNCONNECTED,
+            displayName,
+            ""
+        )
         setupNotification()
         uiCallback?.onUiUpdate(controlData = controlData)
     }
