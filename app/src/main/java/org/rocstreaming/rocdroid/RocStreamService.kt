@@ -324,6 +324,11 @@ class RocStreamService : Service(), CtrlCallback {
             controlData?.serverName ?: "",
             controlData?.ClientName ?: ""
         )
+        // Get back on mainActivity thread for UI update
+        Intent(applicationContext, this::class.java).apply {
+            action = START
+            startService(this)
+        }
         setupNotification()
 
     }
@@ -335,7 +340,11 @@ class RocStreamService : Service(), CtrlCallback {
             ""
         )
         setupNotification()
-        uiCallback?.onUiUpdate(controlData = controlData)
+        // Get back on mainActivity thread for UI update
+        Intent(applicationContext, this.javaClass).let {
+            it.action = if (permissionToRecordAccepted) START else START_NO_SEND
+            startForegroundService(it)
+        }
     }
 
     override fun onAudioStream(

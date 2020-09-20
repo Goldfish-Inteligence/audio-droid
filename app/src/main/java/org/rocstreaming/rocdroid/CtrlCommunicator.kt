@@ -3,13 +3,18 @@ package org.rocstreaming.rocdroid
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
+import android.util.Log
 import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import java.net.Socket
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
+import kotlin.time.toDuration
 
 interface CtrlCallback {
     fun onServerDiscovered(host: String, port: Int)
@@ -54,12 +59,11 @@ enum class ConnectionState {
  * TODO: Actually understand kotlin and objects, inner classes, ..., I do not even know what to google for
  * TODO: Implement missing methods
  * TODO: Implement reading from server stream to execute callback methods
- * TODO: Implement a very simple state machine that is queryable (connecting, connected, fatal, retrying, ...)\
- * TODO: Implement a send thread for networking
  */
 class CtrlCommunicator(// cant get this to work without nullable
     private var callbacks: CtrlCallback, private val deviceId: String, context: Context
 ) {
+    private var recvThread: Thread? = null
     private var socketThread: Thread? = null
     var state: ConnectionState = ConnectionState.UNCONNECTED
         private set
@@ -85,8 +89,8 @@ class CtrlCommunicator(// cant get this to work without nullable
                 autoHost = serviceInfo?.host?.hostName ?: ""
                 autoPort = serviceInfo?.port ?: 0
                 if (autoPort != 0 && autoHost.isNotEmpty()) {
-                    callbacks.onServerDiscovered(autoHost, autoPort)
                     state = ConnectionState.CONNECTED
+                    callbacks.onServerDiscovered(autoHost, autoPort)
                     nsdManager?.stopServiceDiscovery(discoveryListener)
                 }
             }
@@ -205,10 +209,8 @@ class CtrlCommunicator(// cant get this to work without nullable
         socketThread = null
     }
 
-    fun connected(): Boolean {
-        return socket?.isConnected ?: false
-    }
 
+    @OptIn(ExperimentalTime::class)
     fun connect(host: String, port: Int) {
         socket = Socket(host, port)
 
@@ -219,10 +221,54 @@ class CtrlCommunicator(// cant get this to work without nullable
         commands.offer(command)
 
         val output = socket?.getOutputStream()
+        val input =
+            if (socket?.getInputStream() == null) null
+            else BufferedReader(InputStreamReader(socket!!.getInputStream()))
         socketThread = thread(start = true) {
             while (socket?.isConnected == true)
                 output?.write(commands.take().toString().toByteArray())
             state = ConnectionState.UNCONNECTED
+        }
+        recvThread = thread(start = true) {
+            var msgString = ""
+            var msg = JSONObject();
+            do {
+                msgString = ""
+                do {
+                    input?.mark(8);
+                    if (input?.read() ?: 0 == '}'.toInt()) {
+                        msgString += "}"
+                        break
+                    }
+                    input?.reset()
+                    msgString += input?.readLine()
+                } while (true)
+                Log.i("ROC_CTRL", msgString)
+                msg = JSONObject(msgString)
+                when (msg.optString("type", "")) {
+                    "DisplayName" -> callbacks.onDisplayName(msg["display_name"] as String)
+                    "BatLogInterval" -> callbacks.onBatteryLogInterval(
+                        (msg["battery_log_interval_secs"] as Int).toDuration(TimeUnit.SECONDS)
+                    )
+                    "TransmitAudio" -> callbacks.onTransmitAudio(
+                        msg["send_audio"] as Boolean,
+                        msg["recv_audio"] as Boolean
+                    )
+                    "MuteAudio" -> callbacks.onMuteAudio(
+                        msg["send_mute"] as Boolean,
+                        msg["recv_mute"] as Boolean
+                    )
+                    "AudioStream" -> callbacks.onAudioStream(
+                        msg["recv_audio_port"] as Int,
+                        msg["recv_repair_port"] as Int,
+                        msg["send_audio_port"] as Int,
+                        msg["send_repair_port"] as Int
+                    )
+                    else -> {
+                    }
+                }
+            } while (socket?.isConnected == true)
+
         }
     }
 }

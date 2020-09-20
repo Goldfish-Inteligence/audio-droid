@@ -176,7 +176,7 @@ class MainActivity : AppCompatActivity(), uiCallback {
                 this.action = CONNECT
                 startForegroundService(this)
             }
-            button.setText(R.string.disconnect_from_control_server)
+            button.setText(R.string.connecting)
         } else if(button.text == getString(R.string.disconnect_from_control_server)) {
             Intent(this, RocStreamService::class.java).apply {
                 this.action = DISCONNECT
