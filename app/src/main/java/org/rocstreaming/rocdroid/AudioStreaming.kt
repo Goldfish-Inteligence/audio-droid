@@ -74,12 +74,12 @@ class AudioStreaming {
                 receiver.bind(
                     PortType.AUDIO_SOURCE,
                     Protocol.RTP_RS8M_SOURCE,
-                    Address(Family.AUTO, ip, audioPort)
+                    Address(Family.AUTO, "0.0.0.0", audioPort)
                 )
                 receiver.bind(
                     PortType.AUDIO_REPAIR,
                     Protocol.RS8M_REPAIR,
-                    Address(Family.AUTO, ip, errorPort)
+                    Address(Family.AUTO, "0.0.0.0", errorPort)
                 )
 
                 val samples = FloatArray(BUFFER_SIZE)
