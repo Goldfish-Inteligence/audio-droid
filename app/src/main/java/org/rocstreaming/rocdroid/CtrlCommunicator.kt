@@ -227,7 +227,8 @@ class CtrlCommunicator(// cant get this to work without nullable
         socketThread = thread(start = true) {
             while (socket?.isConnected == true)
                 output?.write(commands.take().toString().toByteArray())
-            state = ConnectionState.UNCONNECTED
+            state = ConnectionState.RETRYING
+
         }
         recvThread = thread(start = true) {
             var msgString = ""
@@ -246,24 +247,34 @@ class CtrlCommunicator(// cant get this to work without nullable
                 Log.i("ROC_CTRL", msgString)
                 msg = JSONObject(msgString)
                 when (msg.optString("type", "")) {
-                    "DisplayName" -> callbacks.onDisplayName(msg["display_name"] as String)
-                    "BatLogInterval" -> callbacks.onBatteryLogInterval(
-                        (msg["battery_log_interval_secs"] as Int).toDuration(TimeUnit.SECONDS)
+                    "DisplayName" -> if (msg.has("display_name"))
+                        callbacks.onDisplayName(msg.getString("display_name"))
+                    "BatLogInterval" -> if (msg.has("battery_log_interval_secs"))
+                        callbacks.onBatteryLogInterval(
+                            msg.getInt("battery_log_interval_secs").toDuration(TimeUnit.SECONDS)
+                        )
+                    "TransmitAudio" -> if (msg.has("send_audio") && msg.has("recv_audio"))
+                        callbacks.onTransmitAudio(
+                            msg.getBoolean("send_audio"),
+                            msg.getBoolean("recv_audio")
+                        )
+                    "MuteAudio" -> if (msg.has("send_mute") && msg.has("recv_mute"))
+                        callbacks.onMuteAudio(
+                            msg.getBoolean("send_mute"),
+                            msg.getBoolean("recv_mute")
+                        )
+                    "AudioStream" -> if (
+                        msg.has("recv_audio_port")
+                        && msg.has("recv_repair_port")
+                        && msg.has("send_audio_port")
+                        && msg.has("send_repair_port")
                     )
-                    "TransmitAudio" -> callbacks.onTransmitAudio(
-                        msg["send_audio"] as Boolean,
-                        msg["recv_audio"] as Boolean
-                    )
-                    "MuteAudio" -> callbacks.onMuteAudio(
-                        msg["send_mute"] as Boolean,
-                        msg["recv_mute"] as Boolean
-                    )
-                    "AudioStream" -> callbacks.onAudioStream(
-                        msg["recv_audio_port"] as Int,
-                        msg["recv_repair_port"] as Int,
-                        msg["send_audio_port"] as Int,
-                        msg["send_repair_port"] as Int
-                    )
+                        callbacks.onAudioStream(
+                            msg.getInt("recv_audio_port"),
+                            msg.getInt("recv_repair_port"),
+                            msg.getInt("send_audio_port"),
+                            msg.getInt("send_repair_port")
+                        )
                     else -> {
                     }
                 }
