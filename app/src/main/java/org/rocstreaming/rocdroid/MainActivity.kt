@@ -216,6 +216,8 @@ class MainActivity : AppCompatActivity(), uiCallback {
 
     }
 
+    // Service callback
+
     override fun onUiUpdate(
         transmissionData: TransmissionData?,
         streamData: StreamData?,

@@ -100,7 +100,6 @@ class RocStreamService : Service(), CtrlCallback {
         this.permissionToRecordAccepted = audioAccepted
         if (!initialized) {
             initialized = true
-            Log.i(CHANNEL_ID, "---------------- service Started ----------------")
 
             sendThread = Thread()
             recvThread = Thread()
@@ -371,7 +370,6 @@ class RocStreamService : Service(), CtrlCallback {
     }
 
     override fun onTransmitAudio(sendAudio: Boolean, recvAudio: Boolean) {
-        Log.i(CHANNEL_ID, "send: ${sendThread.isAlive}, recv:${recvThread.isAlive}")
         onTransmitAudio(
             sendAudio = sendAudio,
             recvAudio = recvAudio,
@@ -383,21 +381,23 @@ class RocStreamService : Service(), CtrlCallback {
     override fun onBatteryLogInterval(batterLogInterval: Duration) {
         batteryLogThread?.interrupt()
         batteryLogThread = thread {
-            // This might cause garbage collection, lets hope not
-            val batteryStatus: Intent? =
-                IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { ifilter ->
-                    registerReceiver(null, ifilter)
+            while (batteryLogThread?.isInterrupted == false) {
+                // This might cause garbage collection, lets hope not
+                val batteryStatus: Intent? =
+                    IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { ifilter ->
+                        registerReceiver(null, ifilter)
+                    }
+                val batteryPct: Double? = batteryStatus?.let { intent ->
+                    val level: Int = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                    val scale: Int = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                    level.toDouble() / scale.toDouble()
                 }
-            val batteryPct: Double? = batteryStatus?.let { intent ->
-                val level: Int = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
-                val scale: Int = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
-                level.toDouble() / scale.toDouble()
+                val status: Int = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+                val isCharging: Boolean = status == BatteryManager.BATTERY_STATUS_CHARGING
+                        || status == BatteryManager.BATTERY_STATUS_FULL
+                ctrlCommunicator?.sendBatteryLevel(batteryPct ?: 0.0, isCharging)
+                Thread.sleep(batterLogInterval.toLongMilliseconds())
             }
-            val status: Int = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
-            val isCharging: Boolean = status == BatteryManager.BATTERY_STATUS_CHARGING
-                    || status == BatteryManager.BATTERY_STATUS_FULL
-            ctrlCommunicator?.sendBatteryLevel(batteryPct ?: 0.0, isCharging)
-            Thread.sleep(batterLogInterval.toLongMilliseconds())
         }
     }
 

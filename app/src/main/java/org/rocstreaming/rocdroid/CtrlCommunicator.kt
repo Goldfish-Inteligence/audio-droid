@@ -77,7 +77,7 @@ class CtrlCommunicator(// cant get this to work without nullable
     private var autoHost: String = ""
     private var autoPort: Int = 0
 
-    private val commands: BlockingQueue<JSONObject> = LinkedBlockingQueue<JSONObject>()
+    private val commands: BlockingQueue<JSONObject?> = LinkedBlockingQueue()
 
     private val resolveListener: NsdManager.ResolveListener =
         object : NsdManager.ResolveListener {
@@ -86,7 +86,7 @@ class CtrlCommunicator(// cant get this to work without nullable
             }
 
             override fun onServiceResolved(serviceInfo: NsdServiceInfo?) {
-                autoHost = serviceInfo?.host?.hostName ?: ""
+                autoHost = serviceInfo?.host?.hostAddress ?: ""
                 autoPort = serviceInfo?.port ?: 0
                 if (autoPort != 0 && autoHost.isNotEmpty()) {
                     state = ConnectionState.CONNECTED
@@ -202,7 +202,7 @@ class CtrlCommunicator(// cant get this to work without nullable
     }
 
     fun stopConnection() {
-        if (state == ConnectionState.CONNECTING)
+        if (state == ConnectionState.CONNECTING || state == ConnectionState.RETRYING)
             nsdManager?.stopServiceDiscovery(discoveryListener)
         socket?.close()
         socket = null
@@ -225,18 +225,29 @@ class CtrlCommunicator(// cant get this to work without nullable
             if (socket?.getInputStream() == null) null
             else BufferedReader(InputStreamReader(socket!!.getInputStream()))
         socketThread = thread(start = true) {
-            while (socket?.isConnected == true)
-                output?.write(commands.take().toString().toByteArray())
+            while (socket?.isConnected == true) {
+                try {
+                    val msg = commands.poll(500, TimeUnit.MILLISECONDS)?.toString() ?: ""
+                    output?.write(msg.toByteArray())
+                } catch (e: InterruptedException) {
+                    // do nothing
+                }
+            }
             state = ConnectionState.RETRYING
-
+            var errorCount = 0
+            while (state == ConnectionState.RETRYING || state == ConnectionState.CONNECTING) {
+                searchServer()
+                Thread.sleep(Math.pow(4.0, errorCount.toDouble()).toLong())
+                nsdManager?.stopServiceDiscovery(discoveryListener)
+                errorCount++
+            }
         }
         recvThread = thread(start = true) {
             var msgString = ""
-            var msg = JSONObject();
+            var msg: JSONObject
             do {
-                msgString = ""
                 do {
-                    input?.mark(8);
+                    input?.mark(8)
                     if (input?.read() ?: 0 == '}'.toInt()) {
                         msgString += "}"
                         break
@@ -244,7 +255,6 @@ class CtrlCommunicator(// cant get this to work without nullable
                     input?.reset()
                     msgString += input?.readLine()
                 } while (true)
-                Log.i("ROC_CTRL", msgString)
                 msg = JSONObject(msgString)
                 when (msg.optString("type", "")) {
                     "DisplayName" -> if (msg.has("display_name"))
