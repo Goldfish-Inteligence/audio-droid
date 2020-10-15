@@ -7,13 +7,10 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.support.v4.media.session.MediaSessionCompat
-import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import java.io.Serializable
 import java.util.*
 import kotlin.concurrent.thread
-import kotlin.reflect.KFunction3
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 
@@ -76,6 +73,10 @@ class RocStreamService : Service(), CtrlCallback {
             SETTINGS -> onAudioStream(extras?.get(SETTINGS) as StreamData, true)
             CONNECT -> ctrlCommunicator?.searchServer()
             DISCONNECT -> ctrlCommunicator?.stopConnection()
+            STOP -> {
+                stopForeground(true)
+                stopSelf()
+            }
         }
         return START_STICKY
     }
@@ -173,6 +174,7 @@ class RocStreamService : Service(), CtrlCallback {
             .addAction(icDeaf, getString(R.string.deaf), getIntent(DEAF, !audioStreaming.deafed))
             .addAction(icSend, getString(R.string.send), getIntent(SEND, !audioStreaming.sending))
             .addAction(icRecv, getString(R.string.recv), getIntent(RECV, !audioStreaming.receiving))
+            .addAction(R.drawable.ic_cancel_24, getString(R.string.cancel), getIntent(STOP))
         startForeground(27, notification.build())
     }
 
@@ -242,6 +244,8 @@ class RocStreamService : Service(), CtrlCallback {
         streamData: StreamData,
         controlFeedback: Boolean = false
     ) {
+        if (streamData.equals(this.streamData))
+            return
         val recvChanged = streamData.recvChanged(streamData)
         val sendChanged = streamData.sendChanged(streamData)
         this.streamData = streamData

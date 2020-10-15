@@ -7,6 +7,7 @@ import android.util.Log
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.io.OutputStream
 import java.net.Socket
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.LinkedBlockingQueue
@@ -38,6 +39,7 @@ enum class ConnectionState {
     UNCONNECTED,
     CONNECTING,
     CONNECTED,
+    DISCONNECTING,
     RETRYING,
     FATAL
 }
@@ -197,16 +199,21 @@ class CtrlCommunicator(// cant get this to work without nullable
                 NsdManager.PROTOCOL_DNS_SD,
                 discoveryListener
             )
-            state = ConnectionState.CONNECTING
+            if (state == ConnectionState.UNCONNECTED)
+                state = ConnectionState.CONNECTING
         }
     }
 
     fun stopConnection() {
         if (state == ConnectionState.CONNECTING || state == ConnectionState.RETRYING)
             nsdManager?.stopServiceDiscovery(discoveryListener)
+        state = ConnectionState.DISCONNECTING
+        socketThread?.join()
+        recvThread?.join()
         socket?.close()
         socket = null
         socketThread = null
+        state = ConnectionState.UNCONNECTED
     }
 
 
@@ -225,71 +232,84 @@ class CtrlCommunicator(// cant get this to work without nullable
             if (socket?.getInputStream() == null) null
             else BufferedReader(InputStreamReader(socket!!.getInputStream()))
         socketThread = thread(start = true) {
-            while (socket?.isConnected == true) {
-                try {
-                    val msg = commands.poll(500, TimeUnit.MILLISECONDS)?.toString() ?: ""
-                    output?.write(msg.toByteArray())
-                } catch (e: InterruptedException) {
-                    // do nothing
-                }
-            }
-            state = ConnectionState.RETRYING
-            var errorCount = 0
-            while (state == ConnectionState.RETRYING || state == ConnectionState.CONNECTING) {
-                searchServer()
-                Thread.sleep(Math.pow(4.0, errorCount.toDouble()).toLong())
-                nsdManager?.stopServiceDiscovery(discoveryListener)
-                errorCount++
-            }
+            sendMessages(output)
         }
         recvThread = thread(start = true) {
-            var msgString = ""
-            var msg: JSONObject
-            do {
-                do {
-                    input?.mark(8)
-                    if (input?.read() ?: 0 == '}'.toInt()) {
-                        msgString += "}"
-                        break
-                    }
-                    input?.reset()
-                    msgString += input?.readLine()
-                } while (true)
-                msg = JSONObject(msgString)
-                when (msg.optString("type", "")) {
-                    "DisplayName" -> if (msg.has("display_name"))
-                        callbacks.onDisplayName(msg.getString("display_name"))
-                    "BatLogInterval" -> if (msg.has("battery_log_interval_secs"))
-                        callbacks.onBatteryLogInterval(
-                            msg.getInt("battery_log_interval_secs").toDuration(TimeUnit.SECONDS)
-                        )
-                    "TransmitAudio" -> if (msg.has("send_audio") && msg.has("recv_audio"))
-                        callbacks.onTransmitAudio(
-                            msg.getBoolean("send_audio"),
-                            msg.getBoolean("recv_audio")
-                        )
-                    "MuteAudio" -> if (msg.has("send_mute") && msg.has("recv_mute"))
-                        callbacks.onMuteAudio(
-                            msg.getBoolean("send_mute"),
-                            msg.getBoolean("recv_mute")
-                        )
-                    "AudioStream" -> if (
-                        msg.has("recv_audio_port")
-                        && msg.has("recv_repair_port")
-                        && msg.has("send_audio_port")
-                        && msg.has("send_repair_port")
-                    )
-                        callbacks.onAudioStream(
-                            msg.getInt("recv_audio_port"),
-                            msg.getInt("recv_repair_port"),
-                            msg.getInt("send_audio_port"),
-                            msg.getInt("send_repair_port")
-                        )
-                    else -> {
-                    }
-                }
-            } while (socket?.isConnected == true)
+            recvMessages(input)
 
+        }
+    }
+
+    @ExperimentalTime
+    private fun recvMessages(input: BufferedReader?) {
+        var msgString = ""
+        var msg: JSONObject
+        var line = ""
+        do {
+            while (state == ConnectionState.CONNECTED && !(input?.ready() ?: false)) {
+                Thread.sleep(50)
+            }
+            while (input?.ready() ?: false)
+                msgString += input?.read()?.toChar() ?: ""
+            Log.i("ROCSTREAM", msgString)
+            //msgString += input?.readText() ?: ""
+            msg = JSONObject(msgString.substringBefore("}", "{") + "}")
+            msgString = msgString.substringAfter("}")
+            when (msg.optString("type", "")) {
+                "DisplayName" -> if (msg.has("display_name"))
+                    callbacks.onDisplayName(msg.getString("display_name"))
+                "BatLogInterval" -> if (msg.has("battery_log_interval_secs"))
+                    callbacks.onBatteryLogInterval(
+                        msg.getInt("battery_log_interval_secs").toDuration(TimeUnit.SECONDS)
+                    )
+                "TransmitAudio" -> if (msg.has("send_audio") && msg.has("recv_audio"))
+                    callbacks.onTransmitAudio(
+                        msg.getBoolean("send_audio"),
+                        msg.getBoolean("recv_audio")
+                    )
+                "MuteAudio" -> if (msg.has("send_mute") && msg.has("recv_mute"))
+                    callbacks.onMuteAudio(
+                        msg.getBoolean("send_mute"),
+                        msg.getBoolean("recv_mute")
+                    )
+                "AudioStream" -> if (
+                    msg.has("recv_audio_port")
+                    && msg.has("recv_repair_port")
+                    && msg.has("send_audio_port")
+                    && msg.has("send_repair_port")
+                )
+                    callbacks.onAudioStream(
+                        msg.getInt("recv_audio_port"),
+                        msg.getInt("recv_repair_port"),
+                        msg.getInt("send_audio_port"),
+                        msg.getInt("send_repair_port")
+                    )
+                else -> {
+                }
+            }
+        } while (socket?.isConnected == true && state == ConnectionState.CONNECTED)
+    }
+
+    private fun sendMessages(output: OutputStream?) {
+        while (socket?.isConnected == true && state == ConnectionState.CONNECTED) {
+            try {
+                val msg = commands.poll(500, TimeUnit.MILLISECONDS)?.toString() ?: ""
+                output?.write(msg.toByteArray())
+            } catch (e: InterruptedException) {
+                // do nothing
+            }
+        }
+        if (state == ConnectionState.CONNECTED)
+            state = ConnectionState.RETRYING
+        var errorCount = 0
+        while ((state == ConnectionState.RETRYING || state == ConnectionState.CONNECTING) && errorCount < 20) {
+            searchServer()
+            Thread.sleep(Math.pow(4.0, errorCount.toDouble()).toLong())
+            nsdManager?.stopServiceDiscovery(discoveryListener)
+            errorCount++
+        }
+        if (errorCount >= 20) {
+            state = ConnectionState.FATAL
         }
     }
 }

@@ -5,6 +5,8 @@ import android.content.*
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.IBinder
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
@@ -12,6 +14,9 @@ import android.widget.TextView
 import android.widget.ToggleButton
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.core.widget.addTextChangedListener
+import androidx.core.widget.doAfterTextChanged
+import androidx.core.widget.doOnTextChanged
 
 
 class MainActivity : AppCompatActivity(), uiCallback {
@@ -50,7 +55,24 @@ class MainActivity : AppCompatActivity(), uiCallback {
             .setOnCheckedChangeListener { _, isChecked -> toggleSend(isChecked) }
         titlebar.findViewById<ToggleButton>(R.id.toggleMicButton)
             .setOnCheckedChangeListener { _, isChecked -> toggleMic(isChecked) }
+        titlebar.findViewById<ToggleButton>(R.id.toggleDeafButton)
+            .setOnCheckedChangeListener { _, isChecked -> toggleDeaf(isChecked) }
 
+        val stream = findViewById<View>(R.id.stream)
+        val focusChangeListener = object : View.OnFocusChangeListener {
+            override fun onFocusChange(v: View?, hasFocus: Boolean) {
+                if (!hasFocus) saveSettings()
+            }
+        }
+        stream.findViewById<EditText>(R.id.ipEditText).onFocusChangeListener = focusChangeListener
+        stream.findViewById<EditText>(R.id.portAudioEditText).onFocusChangeListener =
+            focusChangeListener
+        stream.findViewById<EditText>(R.id.portAudioEditTextSend).onFocusChangeListener =
+            focusChangeListener
+        stream.findViewById<EditText>(R.id.portErrorEditText).onFocusChangeListener =
+            focusChangeListener
+        stream.findViewById<EditText>(R.id.portErrorEditTextSend).onFocusChangeListener =
+            focusChangeListener
 
         ActivityCompat.requestPermissions(this, permissions, REQUEST_RECORD_AUDIO_PERMISSION)
     }
@@ -95,6 +117,7 @@ class MainActivity : AppCompatActivity(), uiCallback {
         titlebar.findViewById<ToggleButton>(R.id.toggleRecvButton).isChecked = transmission.recv
         titlebar.findViewById<ToggleButton>(R.id.toggleSendButton).isChecked = transmission.send
         titlebar.findViewById<ToggleButton>(R.id.toggleMicButton).isChecked = !transmission.muted
+        titlebar.findViewById<ToggleButton>(R.id.toggleDeafButton).isChecked = !transmission.deafed
 
     }
 
@@ -168,26 +191,34 @@ class MainActivity : AppCompatActivity(), uiCallback {
             startForegroundService(this)
         }
     }
-
-    fun toggleControl(view: View) {
-        val button = view as Button
-        if (button.text == getString(R.string.connect_to_control_server)) {
-            Intent(this, RocStreamService::class.java).apply {
-                this.action = CONNECT
-                startForegroundService(this)
-            }
-            button.setText(R.string.connecting)
-        } else if(button.text == getString(R.string.disconnect_from_control_server)) {
-            Intent(this, RocStreamService::class.java).apply {
-                this.action = DISCONNECT
-                startForegroundService(this)
-            }
-            button.setText(R.string.connect_to_control_server)
-
+    private fun toggleDeaf(sending: Boolean) {
+        Intent(this, RocStreamService::class.java).apply {
+            this.action = DEAF
+            putExtra(DEAF, !sending)
+            startForegroundService(this)
         }
     }
 
-    fun saveSettings(@Suppress("UNUSED_PARAMETER") view: View) {
+    fun toggleControl(view: View) {
+        val button = view as Button
+        if (isBound) {
+            if (mService?.ctrlCommunicator?.state == ConnectionState.UNCONNECTED) {
+                Intent(this, RocStreamService::class.java).apply {
+                    this.action = CONNECT
+                    startForegroundService(this)
+                }
+                button.setText(R.string.connecting)
+            } else if (mService?.ctrlCommunicator?.state == ConnectionState.CONNECTED) {
+                Intent(this, RocStreamService::class.java).apply {
+                    this.action = DISCONNECT
+                    startForegroundService(this)
+                }
+                button.setText(R.string.connect_to_control_server)
+            }
+        }
+    }
+
+    fun saveSettings() {
         val stream = findViewById<View>(R.id.stream)
         val address = stream.findViewById<EditText>(R.id.ipEditText).text.toString()
         val audioRecvPort =
