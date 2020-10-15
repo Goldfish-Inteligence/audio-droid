@@ -40,19 +40,18 @@
         <ToggleButton
             android:id="@+id/toggleMicButton"
             style="@style/toggleMicButton"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:background="@drawable/ic_toggle_mic_bg"
             android:checked="true"
-            app:layout_constraintBottom_toBottomOf="@+id/connectionInfo"
+            app:layout_constraintBottom_toBottomOf="@+id/toggleDeafButton"
             app:layout_constraintEnd_toStartOf="@+id/guideEnd" />
-
 
         <ToggleButton
             android:id="@+id/toggleRecvButton"
             style="@style/toggleReceiveButton"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:background="@drawable/ic_toggle_receive_bg"
             app:layout_constraintBottom_toBottomOf="@+id/connectionInfo"
             app:layout_constraintEnd_toStartOf="@+id/toggleSendButton" />
@@ -61,11 +60,20 @@
         <ToggleButton
             android:id="@+id/toggleSendButton"
             style="@style/toggleSendButton"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:background="@drawable/ic_toggle_send_bg"
             app:layout_constraintBottom_toBottomOf="@+id/connectionInfo"
-            app:layout_constraintEnd_toStartOf="@+id/toggleMicButton" />
+            app:layout_constraintEnd_toStartOf="@+id/guideEnd" />
+
+        <ToggleButton
+            android:id="@+id/toggleDeafButton"
+            style="@style/toggleSendButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/ic_toggle_deaf"
+            app:layout_constraintStart_toStartOf="@+id/toggleRecvButton"
+            app:layout_constraintTop_toBottomOf="@+id/toggleRecvButton" />
 
 
         <androidx.constraintlayout.widget.Guideline

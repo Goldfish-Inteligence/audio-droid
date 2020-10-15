@@ -5,19 +5,7 @@
         android:layout_height="match_parent">
 
 
-        <Button
-            android:id="@+id/updateButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginHorizontal="56dp"
-            android:layout_marginTop="24dp"
-            android:onClick="saveSettings"
-            android:text="@string/update_settings"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/portAudioEditText" />
-
-        <TextView
+    <TextView
             android:id="@+id/advancedLabel"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -40,13 +28,14 @@
 
         <EditText
             android:id="@+id/ipEditText"
+            android:tag="@string/autoupdate"
             android:layout_width="0dp"
             android:layout_height="41dp"
             android:autofillHints=""
             android:digits="@string/ip_characters"
             android:ems="10"
             android:hint="@string/server_ip"
-            android:text="192.168.178.42"
+            android:text=""
             android:inputType="number"
             app:layout_constraintEnd_toStartOf="@+id/guideEnd"
             app:layout_constraintStart_toStartOf="@+id/guideStart"
@@ -87,6 +76,7 @@
 
         <EditText
             android:id="@+id/portAudioEditText"
+            android:tag="@string/autoupdate"
             android:layout_width="0dp"
             android:layout_height="41dp"
             android:layout_marginEnd="24dp"
@@ -99,6 +89,7 @@
 
         <EditText
             android:id="@+id/portErrorEditText"
+            android:tag="@string/autoupdate"
             android:layout_width="0dp"
             android:layout_height="41dp"
             android:layout_marginStart="24dp"
@@ -123,6 +114,7 @@
 
         <TextView
             android:id="@+id/portLabelAudioSend"
+            android:tag="@string/autoupdate"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
@@ -158,6 +150,7 @@
 
         <EditText
             android:id="@+id/portErrorEditTextSend"
+            android:tag="@string/autoupdate"
             android:layout_width="0dp"
             android:layout_height="41dp"
             android:layout_marginStart="24dp"

@@ -31,4 +31,6 @@
     <string name="mute">mute</string>
     <string name="unmute">unmute</string>
     <string name="deaf">Deaf</string>
+    <string name="autoupdate">autoupdate</string>
+    <string name="cancel">Cancel</string>
 </resources>
