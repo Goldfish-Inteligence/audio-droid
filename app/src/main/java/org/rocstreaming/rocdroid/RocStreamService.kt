@@ -258,7 +258,7 @@ class RocStreamService : Service(), CtrlCallback {
             onTransmitAudio(true, audioStreaming.receiving)
         }
         uiCallback?.onUiUpdate(streamData = streamData)
-        if (controlFeedback)
+        if (controlFeedback && (recvChanged || sendChanged))
             ctrlCommunicator?.sendAudioStream(
                 streamData.portAudioRecv,
                 streamData.portErrorRecv,
@@ -272,11 +272,13 @@ class RocStreamService : Service(), CtrlCallback {
         recvMute: Boolean = audioStreaming.deafed,
         controlFeedback: Boolean = false
     ) {
+        val recvChanged = audioStreaming.deafed != recvMute
+        val sendChanged = audioStreaming.muted != sendMute
         audioStreaming.muted = sendMute
         audioStreaming.deafed = recvMute
         setupNotification()
         uiCallback?.onUiUpdate(getTransmissionState())
-        if (controlFeedback)
+        if (controlFeedback && (recvChanged || sendChanged))
             ctrlCommunicator?.sendMuteAudio(sendMute, recvMute)
     }
 
@@ -285,10 +287,13 @@ class RocStreamService : Service(), CtrlCallback {
         recvAudio: Boolean = audioStreaming.receiving,
         controlFeedback: Boolean = false
     ) {
+        var change = false
         if (!recvAudio && audioStreaming.receiving) {
+            change = true
             audioStreaming.receiving = false
         }
         if (recvAudio && !recvThread.isAlive) {
+            change = true
             audioStreaming.receiving = true
             recvThread = thread(start = true) {
                 audioStreaming.startReceiver(
@@ -299,9 +304,11 @@ class RocStreamService : Service(), CtrlCallback {
             }
         }
         if (!sendAudio && sendThread.isAlive) {
+            change = true
             audioStreaming.sending = false
         }
         if (sendAudio && !sendThread.isAlive) {
+            change = true
             audioStreaming.sending = true
             sendThread = thread(start = true) {
                 audioStreaming.startSender(
@@ -313,7 +320,7 @@ class RocStreamService : Service(), CtrlCallback {
         }
         setupNotification()
         uiCallback?.onUiUpdate(getTransmissionState())
-        if (controlFeedback)
+        if (controlFeedback && change)
             ctrlCommunicator?.sendTransmitAudio(sendAudio, recvAudio)
     }
 
@@ -356,7 +363,7 @@ class RocStreamService : Service(), CtrlCallback {
         sendAudioPort: Int,
         sendRepairPort: Int
     ) {
-        streamData = streamData.modified(
+        val streamData = streamData.modified(
             portAudioRecv = recvAudioPort,
             portErrorRecv = recvRepairPort,
             portAudioSend = sendAudioPort,

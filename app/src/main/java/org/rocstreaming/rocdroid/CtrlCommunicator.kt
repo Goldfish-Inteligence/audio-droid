@@ -249,12 +249,9 @@ class CtrlCommunicator(// cant get this to work without nullable
             while (state == ConnectionState.CONNECTED && !(input?.ready() ?: false)) {
                 Thread.sleep(50)
             }
-            while (input?.ready() ?: false)
-                msgString += input?.read()?.toChar() ?: ""
+            msgString = input?.readLine()?:"{}"
             Log.i("ROCSTREAM", msgString)
-            //msgString += input?.readText() ?: ""
-            msg = JSONObject(msgString.substringBefore("}", "{") + "}")
-            msgString = msgString.substringAfter("}")
+            msg = JSONObject(msgString)
             when (msg.optString("type", "")) {
                 "DisplayName" -> if (msg.has("display_name"))
                     callbacks.onDisplayName(msg.getString("display_name"))
