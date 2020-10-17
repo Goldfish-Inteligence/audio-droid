@@ -9,6 +9,7 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStream
 import java.net.Socket
+import java.net.SocketException
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
@@ -208,8 +209,10 @@ class CtrlCommunicator(// cant get this to work without nullable
         if (state == ConnectionState.CONNECTING || state == ConnectionState.RETRYING)
             nsdManager?.stopServiceDiscovery(discoveryListener)
         state = ConnectionState.DISCONNECTING
-        socketThread?.join()
-        recvThread?.join()
+        socketThread?.join(250)
+        socketThread?.interrupt()
+        recvThread?.join(250)
+        recvThread?.interrupt()
         socket?.close()
         socket = null
         socketThread = null
@@ -249,7 +252,11 @@ class CtrlCommunicator(// cant get this to work without nullable
             while (state == ConnectionState.CONNECTED && !(input?.ready() ?: false)) {
                 Thread.sleep(50)
             }
-            msgString = input?.readLine()?:"{}"
+            try {
+                msgString = input?.readLine() ?: "{}"
+            } catch (e: SocketException) {
+                break
+            }
             Log.i("ROCSTREAM", msgString)
             msg = JSONObject(msgString)
             when (msg.optString("type", "")) {
