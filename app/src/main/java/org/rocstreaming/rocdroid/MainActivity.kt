@@ -191,6 +191,7 @@ class MainActivity : AppCompatActivity(), uiCallback {
             startForegroundService(this)
         }
     }
+
     private fun toggleDeaf(sending: Boolean) {
         Intent(this, RocStreamService::class.java).apply {
             this.action = DEAF
@@ -257,6 +258,13 @@ class MainActivity : AppCompatActivity(), uiCallback {
         transmissionData?.let { updateTransmissions(transmissionData) }
         streamData?.let { updateConnections(streamData) }
         controlData?.let { onDisplayName(controlData) }
+    }
+
+    fun stopService(view: View) {
+        Intent(this, RocStreamService::class.java).apply {
+            this.action = STOP
+            startForegroundService(this)
+        }
     }
 
 }

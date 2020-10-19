@@ -18,10 +18,7 @@ android {
     }
 
     apply plugin: 'kotlin-kapt'
-    dataBinding {
-        //noinspection DataBindingWithoutKapt
-        enabled = true
-    }
+    buildFeatures.dataBinding true
 
 
     compileOptions {

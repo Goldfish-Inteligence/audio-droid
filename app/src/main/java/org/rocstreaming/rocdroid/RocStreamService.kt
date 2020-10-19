@@ -34,8 +34,8 @@ class RocStreamService : Service(), CtrlCallback {
 
     // update changes Stream - garbage collection ok (all 3)
     private var streamData: StreamData = StreamData("192.168.178.26", 0, 0, 10001, 10002)
-    private lateinit var recvThread: Thread
-    private lateinit var sendThread: Thread
+    private var recvThread: Thread = thread {}
+    private var sendThread: Thread = thread {}
     private var batteryLogThread: Thread? = null
     private lateinit var notificationManagerCompat: NotificationManagerCompat
 
@@ -246,8 +246,8 @@ class RocStreamService : Service(), CtrlCallback {
     ) {
         if (streamData.equals(this.streamData))
             return
-        val recvChanged = streamData.recvChanged(streamData)
-        val sendChanged = streamData.sendChanged(streamData)
+        val recvChanged = this.streamData.recvChanged(streamData)
+        val sendChanged = this.streamData.sendChanged(streamData)
         this.streamData = streamData
         if (recvChanged && audioStreaming.receiving) {
             onTransmitAudio(audioStreaming.sending, false)
@@ -287,13 +287,13 @@ class RocStreamService : Service(), CtrlCallback {
         recvAudio: Boolean = audioStreaming.receiving,
         controlFeedback: Boolean = false
     ) {
-        var change = false
+        var changed = false
         if (!recvAudio && audioStreaming.receiving) {
-            change = true
+            changed = true
             audioStreaming.receiving = false
         }
         if (recvAudio && !recvThread.isAlive) {
-            change = true
+            changed = true
             audioStreaming.receiving = true
             recvThread = thread(start = true) {
                 audioStreaming.startReceiver(
@@ -304,11 +304,11 @@ class RocStreamService : Service(), CtrlCallback {
             }
         }
         if (!sendAudio && sendThread.isAlive) {
-            change = true
+            changed = true
             audioStreaming.sending = false
         }
         if (sendAudio && !sendThread.isAlive) {
-            change = true
+            changed = true
             audioStreaming.sending = true
             sendThread = thread(start = true) {
                 audioStreaming.startSender(
@@ -320,7 +320,7 @@ class RocStreamService : Service(), CtrlCallback {
         }
         setupNotification()
         uiCallback?.onUiUpdate(getTransmissionState())
-        if (controlFeedback && change)
+        if (controlFeedback && changed)
             ctrlCommunicator?.sendTransmitAudio(sendAudio, recvAudio)
     }
 
@@ -363,13 +363,14 @@ class RocStreamService : Service(), CtrlCallback {
         sendAudioPort: Int,
         sendRepairPort: Int
     ) {
-        val streamData = streamData.modified(
+        val newData = StreamData(
+            ip = this.streamData.ip,
             portAudioRecv = recvAudioPort,
             portErrorRecv = recvRepairPort,
             portAudioSend = sendAudioPort,
             portErrorSend = sendRepairPort
         )
-        onAudioStream(streamData)
+        onAudioStream(newData)
     }
 
     override fun onMuteAudio(sendMute: Boolean, recvMute: Boolean) {

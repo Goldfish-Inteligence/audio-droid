@@ -12,7 +12,8 @@
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:paddingBottom="20dp">
 
         <TextView
             android:id="@+id/connectionInfo"
@@ -29,10 +30,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:layout_marginBottom="20dp"
             android:text="@string/server_name_placeholder"
             android:textSize="16sp"
-            app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="@+id/guideStart"
             app:layout_constraintTop_toBottomOf="@+id/connectionInfo" />
 
@@ -42,19 +41,23 @@
             style="@style/toggleMicButton"
             android:layout_width="40dp"
             android:layout_height="40dp"
+            android:layout_marginTop="20dp"
             android:background="@drawable/ic_toggle_mic_bg"
             android:checked="true"
-            app:layout_constraintBottom_toBottomOf="@+id/toggleDeafButton"
-            app:layout_constraintEnd_toStartOf="@+id/guideEnd" />
+            android:layout_marginStart="0dp"
+            app:layout_constraintStart_toStartOf="@id/guideStart"
+            app:layout_constraintTop_toBottomOf="@id/connectionName" />
 
         <ToggleButton
             android:id="@+id/toggleRecvButton"
             style="@style/toggleReceiveButton"
             android:layout_width="40dp"
             android:layout_height="40dp"
+            android:layout_marginTop="20dp"
             android:background="@drawable/ic_toggle_receive_bg"
-            app:layout_constraintBottom_toBottomOf="@+id/connectionInfo"
-            app:layout_constraintEnd_toStartOf="@+id/toggleSendButton" />
+            app:layout_constraintEnd_toStartOf="@+id/cancelService"
+            app:layout_constraintStart_toEndOf="@id/toggleSendButton"
+            app:layout_constraintTop_toBottomOf="@id/connectionName" />
 
 
         <ToggleButton
@@ -62,18 +65,33 @@
             style="@style/toggleSendButton"
             android:layout_width="40dp"
             android:layout_height="40dp"
+            android:layout_marginTop="20dp"
             android:background="@drawable/ic_toggle_send_bg"
-            app:layout_constraintBottom_toBottomOf="@+id/connectionInfo"
-            app:layout_constraintEnd_toStartOf="@+id/guideEnd" />
+            app:layout_constraintEnd_toStartOf="@+id/guide_mid"
+            app:layout_constraintStart_toStartOf="@+id/guide_mid"
+            app:layout_constraintTop_toBottomOf="@id/connectionName" />
 
         <ToggleButton
             android:id="@+id/toggleDeafButton"
             style="@style/toggleSendButton"
             android:layout_width="40dp"
             android:layout_height="40dp"
+            android:layout_marginTop="20dp"
             android:background="@drawable/ic_toggle_deaf"
-            app:layout_constraintStart_toStartOf="@+id/toggleRecvButton"
-            app:layout_constraintTop_toBottomOf="@+id/toggleRecvButton" />
+            app:layout_constraintEnd_toStartOf="@+id/toggleSendButton"
+            app:layout_constraintStart_toEndOf="@id/toggleMicButton"
+            app:layout_constraintTop_toBottomOf="@id/connectionName" />
+
+        <Button
+            android:id="@+id/cancelService"
+            style="@style/toggleMicButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginTop="20dp"
+            android:onClick="stopService"
+            android:background="@drawable/ic_cancel_24"
+            app:layout_constraintEnd_toStartOf="@+id/guideEnd"
+            app:layout_constraintTop_toBottomOf="@id/connectionName" />
 
 
         <androidx.constraintlayout.widget.Guideline
@@ -81,7 +99,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            app:layout_constraintGuide_begin="205dp" />
+            app:layout_constraintGuide_begin="197dp" />
 
         <androidx.constraintlayout.widget.Guideline
             android:id="@+id/guideStart"
